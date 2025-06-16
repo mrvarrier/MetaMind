@@ -65,7 +65,7 @@ sudo apt install libwebkit2gtk-4.0-dev build-essential curl wget libssl-dev libg
 
 **For macOS/Linux:**
 ```bash
-git clone https://github.com/your-username/metamind.git
+git clone https://github.com/mrvarrier/metamind.git
 cd metamind
 chmod +x setup.sh
 ./setup.sh
@@ -73,7 +73,7 @@ chmod +x setup.sh
 
 **For Windows:**
 ```cmd
-git clone https://github.com/your-username/metamind.git
+git clone https://github.com/mrvarrier/metamind.git
 cd metamind
 setup.bat
 ```
@@ -91,7 +91,7 @@ If you prefer to install manually or the setup script fails:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/metamind.git
+   git clone https://github.com/mrvarrier/metamind.git
    cd metamind
    ```
 
@@ -272,7 +272,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you encounter any issues or have questions:
 
 1. Check the [troubleshooting guide](#troubleshooting)
-2. Search [existing issues](https://github.com/your-username/metamind/issues)
-3. Create a [new issue](https://github.com/your-username/metamind/issues/new) with details
+2. Search [existing issues](https://github.com/mrvarrier/metamind/issues)
+3. Create a [new issue](https://github.com/mrvarrier/metamind/issues/new) with details
 
-For feature requests and discussions, please use [GitHub Discussions](https://github.com/your-username/metamind/discussions).
+For feature requests and discussions, please use [GitHub Discussions](https://github.com/mrvarrier/metamind/discussions).
