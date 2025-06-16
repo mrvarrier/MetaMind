@@ -173,6 +173,33 @@ async fn get_search_suggestions(partial_query: String) -> Result<Vec<String>, St
     Ok(suggestions)
 }
 
+#[tauri::command]
+async fn get_available_models() -> Result<serde_json::Value, String> {
+    // Check if Ollama is running and get available models
+    let client = reqwest::Client::new();
+    
+    match client.get("http://localhost:11434/api/tags").send().await {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.json::<serde_json::Value>().await {
+                    Ok(data) => Ok(data),
+                    Err(_) => {
+                        // Return empty models list if parsing fails
+                        Ok(serde_json::json!({"models": []}))
+                    }
+                }
+            } else {
+                // Ollama not running or error
+                Ok(serde_json::json!({"models": []}))
+            }
+        }
+        Err(_) => {
+            // Network error or Ollama not available
+            Ok(serde_json::json!({"models": []}))
+        }
+    }
+}
+
 fn main() {
     tracing_subscriber::fmt::init();
 
@@ -192,7 +219,8 @@ fn main() {
             get_system_capabilities,
             start_system_monitoring,
             stop_system_monitoring,
-            get_search_suggestions
+            get_search_suggestions,
+            get_available_models
         ])
         .setup(|app| {
             println!("MetaMind is starting up!");

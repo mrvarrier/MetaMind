@@ -16,13 +16,19 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   const [progress, setProgress] = useState(0);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   
-  const { updateOnboardingState } = useAppStore();
+  const { onboardingState, updateOnboardingState } = useAppStore();
   const { systemInfo, getSystemCapabilities } = useSystemStore();
   const [analysis, setAnalysis] = useState<SystemAnalysis | null>(null);
 
   useEffect(() => {
-    startSystemAnalysis();
-  }, []);
+    // Check if analysis already exists from previous visit
+    if (onboardingState.systemAnalysis) {
+      setAnalysis(onboardingState.systemAnalysis);
+      setAnalysisComplete(true);
+    } else {
+      startSystemAnalysis();
+    }
+  }, [onboardingState.systemAnalysis]);
 
   const startSystemAnalysis = async () => {
     setIsAnalyzing(true);
@@ -277,22 +283,54 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
             </ul>
           </div>
 
-          {/* Additional test content to ensure scrolling works */}
+          {/* Detailed System Information */}
           <div className="card-notion p-6 text-left">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              System Details
+              Detailed System Information
             </h3>
-            <div className="space-y-4 text-sm text-gray-600 dark:text-gray-400">
-              <p>This section contains additional system information to test scrolling functionality.</p>
-              <p>The layout should be fully scrollable regardless of window size.</p>
-              <p>You should be able to see this content and the Continue button below by scrolling.</p>
-              <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="font-medium text-gray-900 dark:text-white mb-2">Test Scrolling:</p>
-                <div className="space-y-2">
-                  {[...Array(10)].map((_, i) => (
-                    <p key={i}>Line {i + 1}: This is test content to ensure proper scrolling behavior works correctly at all window sizes.</p>
-                  ))}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Operating System</p>
+                    <p className="text-base text-gray-900 dark:text-white">{analysis.os}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Architecture</p>
+                    <p className="text-base text-gray-900 dark:text-white">{analysis.architecture}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">CPU Cores</p>
+                    <p className="text-base text-gray-900 dark:text-white">{analysis.cpu_cores} cores</p>
+                  </div>
                 </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Memory</p>
+                    <p className="text-base text-gray-900 dark:text-white">{formatMemory(analysis.total_memory_gb)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recommended Threads</p>
+                    <p className="text-base text-gray-900 dark:text-white">{analysis.recommended_max_threads} threads</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Background Processing</p>
+                    <p className="text-base text-gray-900 dark:text-white">
+                      {analysis.supports_background_processing ? "Supported" : "Not Supported"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Performance Assessment</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Your system has been rated as <strong className="text-gray-900 dark:text-white">{getPerformanceRating()}</strong> for MetaMind.
+                  {analysis.gpu_acceleration 
+                    ? " GPU acceleration is available for enhanced processing performance."
+                    : " Processing will utilize CPU resources efficiently."
+                  }
+                </p>
               </div>
             </div>
           </div>

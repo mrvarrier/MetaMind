@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
+import { open } from "@tauri-apps/api/dialog";
 
 interface FolderSelectionStepProps {
   onNext: () => void;
@@ -9,27 +10,56 @@ interface FolderSelectionStepProps {
 }
 
 export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps) {
-  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
+  const [selectedPaths, setSelectedPaths] = useState<{ path: string; type: 'folder' | 'file' }[]>([]);
   const { updateOnboardingState } = useAppStore();
 
-  const suggestedFolders = [
-    { path: "~/Documents", description: "Your documents folder", icon: "📄" },
-    { path: "~/Desktop", description: "Files on your desktop", icon: "🖥️" },
-    { path: "~/Downloads", description: "Downloaded files", icon: "⬇️" },
-    { path: "~/Pictures", description: "Your photos and images", icon: "📸" },
-    { path: "~/Projects", description: "Development projects", icon: "⚡" },
-  ];
-
-  const toggleFolder = (folderPath: string) => {
-    if (selectedFolders.includes(folderPath)) {
-      setSelectedFolders(selectedFolders.filter(f => f !== folderPath));
-    } else {
-      setSelectedFolders([...selectedFolders, folderPath]);
+  const addFolder = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: true,
+        title: "Select folders to monitor"
+      });
+      
+      if (selected) {
+        const paths = Array.isArray(selected) ? selected : [selected];
+        const newFolders = paths.map(path => ({ path, type: 'folder' as const }));
+        setSelectedPaths(prev => [...prev, ...newFolders]);
+      }
+    } catch (error) {
+      console.error('Error selecting folders:', error);
     }
   };
 
+  const addFiles = async () => {
+    try {
+      const selected = await open({
+        directory: false,
+        multiple: true,
+        title: "Select files to monitor"
+      });
+      
+      if (selected) {
+        const paths = Array.isArray(selected) ? selected : [selected];
+        const newFiles = paths.map(path => ({ path, type: 'file' as const }));
+        setSelectedPaths(prev => [...prev, ...newFiles]);
+      }
+    } catch (error) {
+      console.error('Error selecting files:', error);
+    }
+  };
+
+  const removePath = (pathToRemove: string) => {
+    setSelectedPaths(prev => prev.filter(item => item.path !== pathToRemove));
+  };
+
+  const getDisplayName = (fullPath: string) => {
+    return fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
+  };
+
   const handleNext = () => {
-    updateOnboardingState({ selectedFolders });
+    const folderPaths = selectedPaths.map(item => item.path);
+    updateOnboardingState({ selectedFolders: folderPaths });
     onNext();
   };
 
@@ -42,10 +72,10 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
         className="mb-6 text-center flex-shrink-0"
       >
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-          Select Folders to Monitor
+          Add Folders and Files
         </h2>
         <p className="text-lg text-gray-600 dark:text-gray-400">
-          Choose which folders MetaMind should analyze and index
+          Select folders and files for MetaMind to analyze and index
         </p>
       </motion.div>
 
@@ -53,57 +83,93 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="space-y-6 pb-6">{/* Content container */}
 
-      <div className="space-y-4 mb-8">
-        {suggestedFolders.map((folder, index) => (
-          <motion.div
-            key={folder.path}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={`card-notion p-4 cursor-pointer transition-all ${
-              selectedFolders.includes(folder.path)
-                ? 'ring-2 ring-primary-500 border-primary-300 dark:border-primary-600'
-                : 'hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-            onClick={() => toggleFolder(folder.path)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="text-2xl">{folder.icon}</div>
-                <div className="text-left">
-                  <h3 className="font-medium text-gray-900 dark:text-white">
-                    {folder.path}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {folder.description}
-                  </p>
-                </div>
-              </div>
-              
-              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                selectedFolders.includes(folder.path)
-                  ? 'bg-primary-500 border-primary-500'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}>
-                {selectedFolders.includes(folder.path) && (
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="flex justify-center mb-8">
-        <Button variant="outline">
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Add Buttons */}
+      <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+        <Button onClick={addFolder} variant="primary" size="lg">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
-          Add Custom Folder
+          Add Folders
+        </Button>
+        <Button onClick={addFiles} variant="outline" size="lg">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Add Files
         </Button>
       </div>
+
+      {/* Selected Items List */}
+      {selectedPaths.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-3 mb-8"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Selected Items ({selectedPaths.length})
+          </h3>
+          {selectedPaths.map((item, index) => (
+            <motion.div
+              key={item.path}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="card-notion p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="text-xl">
+                    {item.type === 'folder' ? '📁' : '📄'}
+                  </div>
+                  <div className="text-left min-w-0 flex-1">
+                    <h4 className="font-medium text-gray-900 dark:text-white truncate">
+                      {getDisplayName(item.path)}
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                      {item.path}
+                    </p>
+                    <span className="inline-block px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded mt-1">
+                      {item.type}
+                    </span>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => removePath(item.path)}
+                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                  title="Remove"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+
+      {/* Empty State */}
+      {selectedPaths.length === 0 && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-12 mb-8"
+        >
+          <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 dark:bg-gray-800 rounded-apple-xl flex items-center justify-center">
+            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            No Items Selected
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Add folders and files to get started with MetaMind
+          </p>
+        </motion.div>
+      )}
 
       <div className="card-notion p-6 mb-8 text-left">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
@@ -142,9 +208,9 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
         
         <Button 
           onClick={handleNext}
-          disabled={selectedFolders.length === 0}
+          disabled={selectedPaths.length === 0}
         >
-          Continue ({selectedFolders.length} folder{selectedFolders.length !== 1 ? 's' : ''} selected)
+          Continue ({selectedPaths.length} item{selectedPaths.length !== 1 ? 's' : ''} selected)
           <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
