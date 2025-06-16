@@ -7,6 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
+        border: "hsl(var(--border))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         // Apple-inspired system colors
         primary: {
           50: '#eff6ff',
