@@ -5,17 +5,19 @@ import { useSearchStore } from "../../stores/useSearchStore";
 interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
 }
 
-export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ collapsed, onToggleCollapse, activeTab, onTabChange }: SidebarProps) {
   const { processingStatus, cpuUsage, memoryUsage } = useSystemStore();
   const { searchHistory } = useSearchStore();
 
   const menuItems = [
-    { icon: "🔍", label: "Search", active: true },
-    { icon: "📁", label: "Collections", active: false },
-    { icon: "📊", label: "Insights", active: false },
-    { icon: "⚙️", label: "Settings", active: false },
+    { icon: "🔍", label: "Search", id: "search" },
+    { icon: "📁", label: "Collections", id: "collections" },
+    { icon: "📊", label: "Insights", id: "insights" },
+    { icon: "⚙️", label: "Settings", id: "settings" },
   ];
 
   return (
@@ -70,8 +72,9 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         {menuItems.map((item, index) => (
           <button
             key={index}
+            onClick={() => onTabChange(item.id)}
             className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-              item.active
+              activeTab === item.id
                 ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}

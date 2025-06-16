@@ -2,10 +2,14 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { SearchInterface } from "../search/SearchInterface";
+import { Collections } from "../collections/Collections";
+import { Insights } from "../insights/Insights";
+import { Settings } from "../settings/Settings";
 import { useAppStore } from "../../stores/useAppStore";
 
 export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState("search");
   const { theme } = useAppStore();
 
   return (
@@ -14,6 +18,8 @@ export function MainLayout() {
       <Sidebar 
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
       />
 
       {/* Main Content */}
@@ -37,7 +43,10 @@ export function MainLayout() {
 
         {/* Main Interface */}
         <div className="flex-1 flex flex-col">
-          <SearchInterface />
+          {activeTab === "search" && <SearchInterface />}
+          {activeTab === "collections" && <Collections />}
+          {activeTab === "insights" && <Insights />}
+          {activeTab === "settings" && <Settings />}
         </div>
       </div>
     </div>
