@@ -21,54 +21,97 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
   });
   const [isSystemOptimized, setIsSystemOptimized] = useState(false);
 
-  // Generate system-optimized configuration
-  const generateOptimizedConfig = (analysis: SystemAnalysis): PerformanceConfig => {
-    const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
+  // Model resource requirements
+  const getModelRequirements = (modelId: string) => {
+    const modelData: Record<string, { ramGB: number; cpuIntensive: boolean; gpuBenefit: boolean }> = {
+      "llama3.1:8b": { ramGB: 8, cpuIntensive: false, gpuBenefit: true },
+      "llama3.1:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
+      "llama3.1:70b": { ramGB: 64, cpuIntensive: true, gpuBenefit: true },
+      "llava:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
+      "codellama:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
+      "mistral:7b": { ramGB: 8, cpuIntensive: false, gpuBenefit: true },
+    };
     
-    // Calculate optimal settings based on system specs
+    return modelData[modelId] || { ramGB: 8, cpuIntensive: false, gpuBenefit: true };
+  };
+
+  // Generate system-optimized configuration considering both system specs and chosen model
+  const generateOptimizedConfig = (analysis: SystemAnalysis, selectedModel?: string): PerformanceConfig => {
+    const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
+    const modelReqs = getModelRequirements(selectedModel || "");
+    
+    // Base calculations
     let cpuUsage = 50;
     let memoryMB = 1024;
     let threads = Math.min(cpu_cores, 4);
+    let backgroundProcessing = cpu_cores >= 4;
+    let thermalThrottling = true;
     
-    if (cpu_cores >= 8 && total_memory_gb >= 16) {
-      // High-end system
-      cpuUsage = 70;
-      memoryMB = Math.min(total_memory_gb * 1024 * 0.25, 3072); // 25% of RAM, max 3GB
-      threads = Math.min(cpu_cores - 2, 8); // Leave 2 cores for system
-    } else if (cpu_cores >= 4 && total_memory_gb >= 8) {
+    // Adjust for model requirements
+    const modelMemoryNeed = modelReqs.ramGB * 1024;
+    const availableMemory = (total_memory_gb * 1024) - modelMemoryNeed; // Memory after model allocation
+    
+    // System tier classification considering model
+    const isHighEnd = cpu_cores >= 8 && total_memory_gb >= (modelReqs.ramGB * 2);
+    const isMidRange = cpu_cores >= 4 && total_memory_gb >= (modelReqs.ramGB * 1.5);
+    const isLowEnd = total_memory_gb >= modelReqs.ramGB;
+    
+    if (!isLowEnd) {
+      // System can't adequately run the model - conservative settings
+      cpuUsage = 30;
+      memoryMB = Math.min(availableMemory * 0.3, 512);
+      threads = Math.max(1, Math.floor(cpu_cores * 0.3));
+      backgroundProcessing = false;
+    } else if (isHighEnd) {
+      // High-end system with adequate headroom
+      cpuUsage = modelReqs.cpuIntensive ? 75 : 65;
+      memoryMB = Math.min(availableMemory * 0.4, 4096);
+      threads = Math.min(cpu_cores - 2, modelReqs.cpuIntensive ? 8 : 6);
+      backgroundProcessing = true;
+      thermalThrottling = !modelReqs.cpuIntensive; // Disable for intensive models on high-end
+    } else if (isMidRange) {
       // Mid-range system
-      cpuUsage = 60;
-      memoryMB = Math.min(total_memory_gb * 1024 * 0.2, 2048); // 20% of RAM, max 2GB
-      threads = Math.min(cpu_cores - 1, 6); // Leave 1 core for system
+      cpuUsage = modelReqs.cpuIntensive ? 65 : 55;
+      memoryMB = Math.min(availableMemory * 0.3, 2048);
+      threads = Math.min(cpu_cores - 1, modelReqs.cpuIntensive ? 6 : 4);
+      backgroundProcessing = !modelReqs.cpuIntensive;
     } else {
-      // Lower-end system
-      cpuUsage = 40;
-      memoryMB = Math.min(total_memory_gb * 1024 * 0.15, 1024); // 15% of RAM, max 1GB
-      threads = Math.max(1, cpu_cores - 1); // Leave 1 core for system, min 1 thread
+      // Low-end but adequate system
+      cpuUsage = modelReqs.cpuIntensive ? 50 : 40;
+      memoryMB = Math.min(availableMemory * 0.25, 1024);
+      threads = Math.max(1, cpu_cores - 1);
+      backgroundProcessing = false;
     }
     
+    // Ensure minimum viable memory allocation
+    memoryMB = Math.max(memoryMB, 512);
+    
     return {
-      max_cpu_usage: cpuUsage,
+      max_cpu_usage: Math.round(cpuUsage),
       max_memory_usage_mb: Math.round(memoryMB),
-      enable_gpu_acceleration: gpu_acceleration,
+      enable_gpu_acceleration: gpu_acceleration && modelReqs.gpuBenefit,
       processing_threads: threads,
-      enable_background_processing: cpu_cores >= 4, // Only enable on quad-core+
-      thermal_throttling: true, // Always enable for safety
+      enable_background_processing: backgroundProcessing,
+      thermal_throttling: thermalThrottling,
     };
   };
 
   useEffect(() => {
-    // Apply system-optimized settings on component mount
+    // Apply system-optimized settings considering both system and model
     if (onboardingState.systemAnalysis && !isSystemOptimized) {
-      const optimizedConfig = generateOptimizedConfig(onboardingState.systemAnalysis);
+      const optimizedConfig = generateOptimizedConfig(
+        onboardingState.systemAnalysis, 
+        onboardingState.selectedModel
+      );
       setConfig(optimizedConfig);
       setIsSystemOptimized(true);
     }
-  }, [onboardingState.systemAnalysis, isSystemOptimized]);
+  }, [onboardingState.systemAnalysis, onboardingState.selectedModel, isSystemOptimized]);
 
-  // Generate dynamic presets based on system capabilities
+  // Generate dynamic presets based on system capabilities and selected model
   const getPresets = () => {
     const analysis = onboardingState.systemAnalysis;
+    const selectedModel = onboardingState.selectedModel;
     if (!analysis) {
       // Fallback static presets if no system analysis
       return [
@@ -112,16 +155,20 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
     }
 
     const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
+    const modelReqs = getModelRequirements(selectedModel || "");
     const maxMemory = Math.max(total_memory_gb * 1024, 1024); // At least 1GB
     const maxThreads = Math.max(cpu_cores, 2);
+    const availableMemory = maxMemory - (modelReqs.ramGB * 1024); // Memory after model
+    
+    const modelName = selectedModel ? selectedModel.split(':')[0] : 'selected model';
     
     return [
       {
         name: "Power Saver",
-        description: "Minimal resource usage for battery life",
+        description: `Minimal usage while running ${modelName}`,
         config: {
           max_cpu_usage: 25,
-          max_memory_usage_mb: Math.min(512, Math.round(maxMemory * 0.1)),
+          max_memory_usage_mb: Math.min(512, Math.round(availableMemory * 0.15)),
           enable_gpu_acceleration: false,
           processing_threads: Math.max(1, Math.floor(maxThreads * 0.25)),
           enable_background_processing: false,
@@ -129,21 +176,21 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
         }
       },
       {
-        name: "System Optimized",
-        description: `Optimized for your ${cpu_cores}-core system`,
-        config: generateOptimizedConfig(analysis),
+        name: "Model Optimized",
+        description: `Optimized for ${modelName} on your ${cpu_cores}-core system`,
+        config: generateOptimizedConfig(analysis, selectedModel),
         isRecommended: true
       },
       {
         name: "Maximum Performance",
-        description: "Use maximum available resources",
+        description: `Maximum resources for ${modelName}`,
         config: {
-          max_cpu_usage: Math.min(85, cpu_cores >= 8 ? 80 : 70),
-          max_memory_usage_mb: Math.min(Math.round(maxMemory * 0.4), 4096),
-          enable_gpu_acceleration: gpu_acceleration,
+          max_cpu_usage: Math.min(85, modelReqs.cpuIntensive ? 80 : 70),
+          max_memory_usage_mb: Math.min(Math.round(availableMemory * 0.5), 4096),
+          enable_gpu_acceleration: gpu_acceleration && modelReqs.gpuBenefit,
           processing_threads: Math.max(1, maxThreads - 1),
-          enable_background_processing: cpu_cores >= 4,
-          thermal_throttling: cpu_cores < 8, // Disable only on high-end systems
+          enable_background_processing: cpu_cores >= 4 && !modelReqs.cpuIntensive,
+          thermal_throttling: cpu_cores < 8 || modelReqs.cpuIntensive,
         }
       }
     ];
@@ -180,7 +227,7 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="space-y-6 pb-6">{/* Content container */}
 
-      {/* System Information */}
+      {/* System and Model Information */}
       {onboardingState.systemAnalysis && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -199,8 +246,13 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
                   System: {onboardingState.systemAnalysis.cpu_cores} cores, {onboardingState.systemAnalysis.total_memory_gb || 'Unknown'} GB RAM
                 </h3>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
-                  GPU: {onboardingState.systemAnalysis.gpu_acceleration ? 'Available' : 'Not Available'}
+                  Model: {onboardingState.selectedModel || 'None selected'} • GPU: {onboardingState.systemAnalysis.gpu_acceleration ? 'Available' : 'Not Available'}
                 </p>
+                {onboardingState.selectedModel && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    Model needs ~{getModelRequirements(onboardingState.selectedModel).ramGB}GB RAM
+                  </p>
+                )}
               </div>
             </div>
             <span className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded">
@@ -396,25 +448,59 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
           Performance Impact
         </h3>
-        <div className="grid md:grid-cols-3 gap-4 text-sm">
+        <div className="grid md:grid-cols-4 gap-4 text-sm">
           <div>
-            <p className="text-gray-500 dark:text-gray-400">Processing Speed</p>
+            <p className="text-gray-500 dark:text-gray-400">AI Processing Speed</p>
             <div className="flex items-center space-x-2 mt-1">
               <div className="flex space-x-1">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-4 rounded-sm ${
-                      i <= Math.floor((config.max_cpu_usage + config.processing_threads * 10) / 30)
-                        ? 'bg-green-500'
-                        : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  />
-                ))}
+                {[1, 2, 3, 4, 5].map((i) => {
+                  const modelBonus = onboardingState.selectedModel && getModelRequirements(onboardingState.selectedModel).cpuIntensive ? 1 : 0;
+                  const speedScore = Math.floor((config.max_cpu_usage + config.processing_threads * 10 + modelBonus * 10) / 35);
+                  return (
+                    <div
+                      key={i}
+                      className={`w-2 h-4 rounded-sm ${
+                        i <= speedScore ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    />
+                  );
+                })}
               </div>
               <span className="text-gray-600 dark:text-gray-400">
-                {Math.floor((config.max_cpu_usage + config.processing_threads * 10) / 30) > 3 ? 'Fast' : 
-                 Math.floor((config.max_cpu_usage + config.processing_threads * 10) / 30) > 1 ? 'Medium' : 'Slow'}
+                {(() => {
+                  const modelBonus = onboardingState.selectedModel && getModelRequirements(onboardingState.selectedModel).cpuIntensive ? 1 : 0;
+                  const speedScore = Math.floor((config.max_cpu_usage + config.processing_threads * 10 + modelBonus * 10) / 35);
+                  return speedScore > 3 ? 'Fast' : speedScore > 1 ? 'Medium' : 'Slow';
+                })()}
+              </span>
+            </div>
+          </div>
+          
+          <div>
+            <p className="text-gray-500 dark:text-gray-400">Memory Usage</p>
+            <div className="flex items-center space-x-2 mt-1">
+              <div className="flex space-x-1">
+                {[1, 2, 3, 4, 5].map((i) => {
+                  const totalMemoryUsage = config.max_memory_usage_mb + (onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel).ramGB * 1024 : 0);
+                  const systemMemory = onboardingState.systemAnalysis?.total_memory_gb || 8;
+                  const memoryScore = Math.floor((totalMemoryUsage / (systemMemory * 1024)) * 5);
+                  return (
+                    <div
+                      key={i}
+                      className={`w-2 h-4 rounded-sm ${
+                        i <= memoryScore ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+              <span className="text-gray-600 dark:text-gray-400">
+                {(() => {
+                  const totalMemoryUsage = config.max_memory_usage_mb + (onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel).ramGB * 1024 : 0);
+                  const systemMemory = onboardingState.systemAnalysis?.total_memory_gb || 8;
+                  const memoryPercent = (totalMemoryUsage / (systemMemory * 1024)) * 100;
+                  return memoryPercent > 60 ? 'High' : memoryPercent > 30 ? 'Medium' : 'Low';
+                })()}
               </span>
             </div>
           </div>
@@ -461,6 +547,15 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
             </div>
           </div>
         </div>
+        
+        {onboardingState.selectedModel && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              <strong>Model Impact:</strong> {onboardingState.selectedModel} will use approximately {getModelRequirements(onboardingState.selectedModel).ramGB}GB of RAM
+              {getModelRequirements(onboardingState.selectedModel).cpuIntensive ? ' and is CPU-intensive' : ' with moderate CPU usage'}.
+            </p>
+          </div>
+        )}
       </div>
 
         </div>
