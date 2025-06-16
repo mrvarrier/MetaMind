@@ -98,8 +98,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center min-h-screen p-4">
-        <div className="w-full max-w-4xl">
+      <div className="pt-16 pb-8 px-4 min-h-screen">
+        <div className="w-full max-w-6xl mx-auto h-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStep}
@@ -107,6 +107,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="h-full"
             >
               {renderStep()}
             </motion.div>

@@ -119,14 +119,14 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     } catch (error) {
       console.error('Failed to get system capabilities:', error);
       
-      // Return fallback capabilities
+      // Return minimal real browser-detected capabilities only
       return {
-        cpu_cores: navigator.hardwareConcurrency || 4,
-        total_memory_gb: 8, // Default assumption
-        architecture: 'unknown',
-        os: navigator.platform,
+        cpu_cores: navigator.hardwareConcurrency || 0,
+        total_memory_gb: 0, // Cannot be detected from browser
+        architecture: 'browser-detected',
+        os: navigator.platform || 'unknown',
         gpu_acceleration: false,
-        recommended_max_threads: navigator.hardwareConcurrency || 4,
+        recommended_max_threads: navigator.hardwareConcurrency || 0,
         supports_background_processing: true,
       };
     }

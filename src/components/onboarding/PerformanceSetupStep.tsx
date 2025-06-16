@@ -70,11 +70,12 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
   };
 
   return (
-    <div className="max-w-4xl mx-auto text-center">
+    <div className="flex flex-col h-full">
+      {/* Header - Fixed */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+        className="mb-6 text-center flex-shrink-0"
       >
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
           Performance Settings
@@ -83,6 +84,10 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
           Configure how MetaMind uses your system resources
         </p>
       </motion.div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="space-y-6 pb-6">{/* Content container */}
 
       {/* Presets */}
       <div className="grid md:grid-cols-3 gap-4 mb-8">
@@ -298,7 +303,11 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
         </div>
       </div>
 
-      <div className="flex justify-between">
+        </div>
+      </div>
+
+      {/* Navigation - Fixed at bottom */}
+      <div className="flex justify-between mt-6 flex-shrink-0">
         <Button variant="secondary" onClick={onBack}>
           Back
         </Button>

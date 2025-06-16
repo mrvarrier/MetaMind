@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tauri::{Manager, State};
 use tokio::sync::RwLock;
 use serde_json;
+use sysinfo::{System, SystemExt, CpuExt, DiskExt};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -37,13 +38,46 @@ impl Default for AppConfig {
 
 #[tauri::command]
 async fn get_system_info() -> Result<serde_json::Value, String> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    
+    // Get CPU usage (average across all cores)
+    let cpu_usage = sys.cpus().iter()
+        .map(|cpu| cpu.cpu_usage())
+        .sum::<f32>() / sys.cpus().len() as f32;
+    
+    // Get memory info
+    let memory_total = sys.total_memory();
+    let memory_used = sys.used_memory();
+    let memory_usage = (memory_used as f32 / memory_total as f32) * 100.0;
+    
+    // Get disk usage
+    let disk_usage: Vec<serde_json::Value> = sys.disks()
+        .iter()
+        .map(|disk| {
+            let total = disk.total_space();
+            let available = disk.available_space();
+            let used = total - available;
+            let usage_percent = if total > 0 { (used as f32 / total as f32) * 100.0 } else { 0.0 };
+            
+            serde_json::json!({
+                "name": disk.name().to_string_lossy(),
+                "mount_point": disk.mount_point().to_string_lossy(),
+                "total": total,
+                "used": used,
+                "available": available,
+                "usage_percent": usage_percent
+            })
+        })
+        .collect();
+    
     let info = serde_json::json!({
-        "cpu_usage": 25.0,
-        "memory_usage": 40.0,
-        "memory_total": 16000000000u64,
-        "memory_used": 6400000000u64,
-        "disk_usage": [],
-        "thermal_state": "Normal",
+        "cpu_usage": cpu_usage,
+        "memory_usage": memory_usage,
+        "memory_total": memory_total,
+        "memory_used": memory_used,
+        "disk_usage": disk_usage,
+        "thermal_state": "Normal", // Could be enhanced with thermal sensors
         "performance_profile": "Balanced"
     });
     Ok(info)
@@ -100,9 +134,14 @@ async fn update_config(
 
 #[tauri::command]
 async fn get_system_capabilities() -> Result<serde_json::Value, String> {
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    
+    let total_memory_gb = (sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0).round() as u64;
+    
     let capabilities = serde_json::json!({
         "cpu_cores": num_cpus::get(),
-        "total_memory_gb": 16,
+        "total_memory_gb": total_memory_gb,
         "architecture": std::env::consts::ARCH,
         "os": std::env::consts::OS,
         "gpu_acceleration": false,

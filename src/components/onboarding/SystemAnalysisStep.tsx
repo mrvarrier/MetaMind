@@ -55,17 +55,17 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
       setAnalysisComplete(true);
     } catch (error) {
       console.error('System analysis failed:', error);
-      // Use fallback data
-      const fallbackAnalysis: SystemAnalysis = {
-        cpu_cores: navigator.hardwareConcurrency || 4,
-        total_memory_gb: 8,
-        architecture: 'unknown',
-        os: navigator.platform,
+      // Get minimal real data from browser
+      const browserAnalysis: SystemAnalysis = {
+        cpu_cores: navigator.hardwareConcurrency || 0,
+        total_memory_gb: 0, // Will show "Unknown" in UI
+        architecture: 'browser',
+        os: navigator.platform || 'unknown',
         gpu_acceleration: false,
-        recommended_max_threads: navigator.hardwareConcurrency || 4,
+        recommended_max_threads: navigator.hardwareConcurrency || 0,
         supports_background_processing: true,
       };
-      setAnalysis(fallbackAnalysis);
+      setAnalysis(browserAnalysis);
       setAnalysisComplete(true);
     } finally {
       setIsAnalyzing(false);
@@ -73,6 +73,7 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   };
 
   const formatMemory = (gb: number) => {
+    if (gb === 0) return "Unknown";
     if (gb >= 1024) {
       return `${(gb / 1024).toFixed(1)} TB`;
     }
@@ -126,11 +127,12 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   };
 
   return (
-    <div className="max-w-2xl mx-auto text-center">
+    <div className="flex flex-col h-full">
+      {/* Header - Fixed */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
+        className="mb-6 text-center flex-shrink-0"
       >
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
           System Analysis
@@ -139,6 +141,10 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
           We're analyzing your system to optimize MetaMind's performance
         </p>
       </motion.div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="space-y-6 pb-6">{/* Content container */}
 
       {isAnalyzing && (
         <motion.div
@@ -273,8 +279,11 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
         </motion.div>
       )}
 
-      {/* Navigation */}
-      <div className="flex justify-between">
+        </div>
+      </div>
+
+      {/* Navigation - Fixed at bottom */}
+      <div className="flex justify-between mt-6 flex-shrink-0">
         <Button variant="secondary" onClick={onBack}>
           Back
         </Button>

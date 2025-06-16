@@ -86,7 +86,7 @@
         "minWidth": 800,
         "minHeight": 600,
         "titleBarStyle": "Transparent",
-        "decorations": false
+        "decorations": true
       }
     ]
   }
