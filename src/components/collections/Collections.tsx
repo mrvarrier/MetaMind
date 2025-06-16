@@ -67,8 +67,8 @@ export function Collections() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Collections</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Collections</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Organize your files into smart collections for better management
             </p>
           </div>
@@ -98,7 +98,7 @@ export function Collections() {
               className="bg-white dark:bg-gray-800 rounded-apple-lg p-6 w-full max-w-md mx-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
                 Create New Collection
               </h3>
               
@@ -143,7 +143,7 @@ export function Collections() {
                 <div className="flex items-center space-x-3">
                   <span className="text-2xl">{collection.icon}</span>
                   <div>
-                    <h3 className="font-semibold text-lg">{collection.name}</h3>
+                    <h3 className="font-semibold text-base">{collection.name}</h3>
                     <p className="text-sm opacity-80">{collection.description}</p>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export function Collections() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               No Collections Yet
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">

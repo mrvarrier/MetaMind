@@ -53,7 +53,7 @@ export function Insights() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
           {subtitle && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
           )}
@@ -77,8 +77,8 @@ export function Insights() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Insights</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Insights</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             AI-powered analysis and insights about your files
           </p>
         </div>
@@ -150,7 +150,7 @@ export function Insights() {
             transition={{ delay: 0.5 }}
             className="card-notion p-6"
           >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
               File Categories
             </h3>
             
@@ -182,7 +182,7 @@ export function Insights() {
             transition={{ delay: 0.6 }}
             className="card-notion p-6"
           >
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
               Recent Activity
             </h3>
             
@@ -222,7 +222,7 @@ export function Insights() {
           transition={{ delay: 0.7 }}
           className="card-notion p-6 mt-8"
         >
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
             System Performance
           </h3>
           
@@ -255,11 +255,14 @@ export function Insights() {
             
             <div>
               <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Processing Efficiency</span>
-                <span>Good</span>
+                <span>Disk Usage</span>
+                <span>{Math.round(systemInfo?.disk_usage || 0)}%</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div className="bg-purple-500 h-2 rounded-full transition-all duration-300" style={{ width: "75%" }} />
+                <div
+                  className="bg-orange-500 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${systemInfo?.disk_usage || 0}%` }}
+                />
               </div>
             </div>
           </div>

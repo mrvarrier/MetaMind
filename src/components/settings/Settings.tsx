@@ -339,8 +339,8 @@ export function Settings() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             Configure MetaMind to work best for your needs
           </p>
         </div>
@@ -375,7 +375,7 @@ export function Settings() {
               transition={{ duration: 0.2 }}
               className="card-notion p-6"
             >
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {tabs.find(tab => tab.id === activeTab)?.name} Settings
               </h2>
               
