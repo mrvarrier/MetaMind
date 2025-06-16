@@ -98,7 +98,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Main Content */}
-      <div className="pt-16 pb-8 px-4 min-h-screen">
+      <div className="fixed inset-0 pt-16 pb-4 px-4 overflow-hidden">
         <div className="w-full max-w-6xl mx-auto h-full">
           <AnimatePresence mode="wait">
             <motion.div

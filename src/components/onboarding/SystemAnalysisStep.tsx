@@ -143,8 +143,8 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
       </motion.div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="space-y-6 pb-6">{/* Content container */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+        <div className="space-y-6 pb-6 max-w-4xl mx-auto">{/* Content container */}
 
       {isAnalyzing && (
         <motion.div
@@ -275,6 +275,26 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Additional test content to ensure scrolling works */}
+          <div className="card-notion p-6 text-left">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              System Details
+            </h3>
+            <div className="space-y-4 text-sm text-gray-600 dark:text-gray-400">
+              <p>This section contains additional system information to test scrolling functionality.</p>
+              <p>The layout should be fully scrollable regardless of window size.</p>
+              <p>You should be able to see this content and the Continue button below by scrolling.</p>
+              <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="font-medium text-gray-900 dark:text-white mb-2">Test Scrolling:</p>
+                <div className="space-y-2">
+                  {[...Array(10)].map((_, i) => (
+                    <p key={i}>Line {i + 1}: This is test content to ensure proper scrolling behavior works correctly at all window sizes.</p>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
       )}
