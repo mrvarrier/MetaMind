@@ -53,8 +53,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
         className="grid md:grid-cols-3 gap-6 mb-12"
       >
         {/* Feature Cards */}
-        <div className="card-notion p-6">
-          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4">
+        <div className="card-notion p-6 text-center">
+          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4 mx-auto">
             <svg
               className="w-6 h-6 text-primary-600 dark:text-primary-400"
               fill="none"
@@ -77,8 +77,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           </p>
         </div>
 
-        <div className="card-notion p-6">
-          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4">
+        <div className="card-notion p-6 text-center">
+          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4 mx-auto">
             <svg
               className="w-6 h-6 text-primary-600 dark:text-primary-400"
               fill="none"
@@ -101,8 +101,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           </p>
         </div>
 
-        <div className="card-notion p-6">
-          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4">
+        <div className="card-notion p-6 text-center">
+          <div className="w-12 h-12 bg-primary-100 dark:bg-primary-900/20 rounded-apple-lg flex items-center justify-center mb-4 mx-auto">
             <svg
               className="w-6 h-6 text-primary-600 dark:text-primary-400"
               fill="none"
