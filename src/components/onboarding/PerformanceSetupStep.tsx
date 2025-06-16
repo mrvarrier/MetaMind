@@ -21,70 +21,126 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
   });
   const [isSystemOptimized, setIsSystemOptimized] = useState(false);
 
-  // Model resource requirements
+  // Model resource requirements - Conservative estimates with safety margins
   const getModelRequirements = (modelId: string) => {
-    const modelData: Record<string, { ramGB: number; cpuIntensive: boolean; gpuBenefit: boolean }> = {
-      "llama3.1:8b": { ramGB: 8, cpuIntensive: false, gpuBenefit: true },
-      "llama3.1:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
-      "llama3.1:70b": { ramGB: 64, cpuIntensive: true, gpuBenefit: true },
-      "llava:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
-      "codellama:13b": { ramGB: 16, cpuIntensive: true, gpuBenefit: true },
-      "mistral:7b": { ramGB: 8, cpuIntensive: false, gpuBenefit: true },
+    const modelData: Record<string, { 
+      minRamGB: number; 
+      recommendedRamGB: number; 
+      cpuIntensive: boolean; 
+      gpuBenefit: boolean;
+      maxSafeCpuUsage: number;
+    }> = {
+      "llama3.1:8b": { minRamGB: 6, recommendedRamGB: 10, cpuIntensive: false, gpuBenefit: true, maxSafeCpuUsage: 60 },
+      "llama3.1:13b": { minRamGB: 12, recommendedRamGB: 20, cpuIntensive: true, gpuBenefit: true, maxSafeCpuUsage: 50 },
+      "llama3.1:70b": { minRamGB: 48, recommendedRamGB: 80, cpuIntensive: true, gpuBenefit: true, maxSafeCpuUsage: 40 },
+      "llava:13b": { minRamGB: 12, recommendedRamGB: 20, cpuIntensive: true, gpuBenefit: true, maxSafeCpuUsage: 50 },
+      "codellama:13b": { minRamGB: 12, recommendedRamGB: 20, cpuIntensive: true, gpuBenefit: true, maxSafeCpuUsage: 50 },
+      "mistral:7b": { minRamGB: 5, recommendedRamGB: 8, cpuIntensive: false, gpuBenefit: true, maxSafeCpuUsage: 60 },
     };
     
-    return modelData[modelId] || { ramGB: 8, cpuIntensive: false, gpuBenefit: true };
+    // Conservative fallback for unknown models
+    return modelData[modelId] || { 
+      minRamGB: 8, 
+      recommendedRamGB: 12, 
+      cpuIntensive: true, 
+      gpuBenefit: false, 
+      maxSafeCpuUsage: 40 
+    };
   };
 
-  // Generate system-optimized configuration considering both system specs and chosen model
+  // Generate system-optimized configuration with strict safety checks
   const generateOptimizedConfig = (analysis: SystemAnalysis, selectedModel?: string): PerformanceConfig => {
     const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
     const modelReqs = getModelRequirements(selectedModel || "");
     
-    // Base calculations
-    let cpuUsage = 50;
-    let memoryMB = 1024;
-    let threads = Math.min(cpu_cores, 4);
-    let backgroundProcessing = cpu_cores >= 4;
-    let thermalThrottling = true;
+    // SAFETY: Validate inputs and use conservative fallbacks
+    const safeCpuCores = Math.max(cpu_cores || 2, 1);
+    const safeMemoryGB = Math.max(total_memory_gb || 4, 2);
     
-    // Adjust for model requirements
-    const modelMemoryNeed = modelReqs.ramGB * 1024;
-    const availableMemory = (total_memory_gb * 1024) - modelMemoryNeed; // Memory after model allocation
+    // SAFETY: Check if system can run the model at all
+    const canRunModel = safeMemoryGB >= modelReqs.minRamGB;
+    const hasRecommendedMemory = safeMemoryGB >= modelReqs.recommendedRamGB;
     
-    // System tier classification considering model
-    const isHighEnd = cpu_cores >= 8 && total_memory_gb >= (modelReqs.ramGB * 2);
-    const isMidRange = cpu_cores >= 4 && total_memory_gb >= (modelReqs.ramGB * 1.5);
-    const isLowEnd = total_memory_gb >= modelReqs.ramGB;
-    
-    if (!isLowEnd) {
-      // System can't adequately run the model - conservative settings
-      cpuUsage = 30;
-      memoryMB = Math.min(availableMemory * 0.3, 512);
-      threads = Math.max(1, Math.floor(cpu_cores * 0.3));
-      backgroundProcessing = false;
-    } else if (isHighEnd) {
-      // High-end system with adequate headroom
-      cpuUsage = modelReqs.cpuIntensive ? 75 : 65;
-      memoryMB = Math.min(availableMemory * 0.4, 4096);
-      threads = Math.min(cpu_cores - 2, modelReqs.cpuIntensive ? 8 : 6);
-      backgroundProcessing = true;
-      thermalThrottling = !modelReqs.cpuIntensive; // Disable for intensive models on high-end
-    } else if (isMidRange) {
-      // Mid-range system
-      cpuUsage = modelReqs.cpuIntensive ? 65 : 55;
-      memoryMB = Math.min(availableMemory * 0.3, 2048);
-      threads = Math.min(cpu_cores - 1, modelReqs.cpuIntensive ? 6 : 4);
-      backgroundProcessing = !modelReqs.cpuIntensive;
-    } else {
-      // Low-end but adequate system
-      cpuUsage = modelReqs.cpuIntensive ? 50 : 40;
-      memoryMB = Math.min(availableMemory * 0.25, 1024);
-      threads = Math.max(1, cpu_cores - 1);
-      backgroundProcessing = false;
+    if (!canRunModel) {
+      // CRITICAL: System cannot run this model safely - ultra-conservative settings
+      return {
+        max_cpu_usage: 20,
+        max_memory_usage_mb: 256, // Absolute minimum
+        enable_gpu_acceleration: false,
+        processing_threads: 1,
+        enable_background_processing: false,
+        thermal_throttling: true,
+      };
     }
     
-    // Ensure minimum viable memory allocation
-    memoryMB = Math.max(memoryMB, 512);
+    // SAFETY: Calculate available memory with large safety margins
+    const systemReserve = Math.max(safeMemoryGB * 0.15, 2); // Reserve 15% or 2GB minimum for OS
+    const modelMemoryNeed = hasRecommendedMemory ? modelReqs.minRamGB : modelReqs.recommendedRamGB;
+    const availableMemoryGB = safeMemoryGB - systemReserve - modelMemoryNeed;
+    
+    // SAFETY: Ensure we have at least 1GB available for processing
+    if (availableMemoryGB < 1) {
+      // Insufficient memory - very conservative settings
+      return {
+        max_cpu_usage: 25,
+        max_memory_usage_mb: 512,
+        enable_gpu_acceleration: false,
+        processing_threads: Math.max(1, Math.floor(safeCpuCores * 0.25)),
+        enable_background_processing: false,
+        thermal_throttling: true,
+      };
+    }
+    
+    // SAFETY: CPU usage calculation with model-specific limits
+    const baseCpuUsage = modelReqs.cpuIntensive ? 35 : 45;
+    const maxSafeCpuUsage = Math.min(modelReqs.maxSafeCpuUsage, 70); // Never exceed 70%
+    let cpuUsage = baseCpuUsage;
+    
+    // SAFETY: Thread calculation - always leave cores for system
+    const reservedCores = Math.max(Math.ceil(safeCpuCores * 0.25), 1); // Reserve 25% or 1 core minimum
+    const maxUsableCores = safeCpuCores - reservedCores;
+    let threads = Math.max(1, Math.min(maxUsableCores, modelReqs.cpuIntensive ? 4 : 6));
+    
+    // SAFETY: Memory allocation - use percentage of available memory, not total
+    let memoryMB = Math.min(
+      availableMemoryGB * 1024 * 0.6, // Use max 60% of available memory
+      modelReqs.cpuIntensive ? 1536 : 2048 // Conservative caps based on model type
+    );
+    
+    // System tier classification with safety margins
+    const isHighEnd = safeCpuCores >= 8 && safeMemoryGB >= (modelReqs.recommendedRamGB * 2);
+    const isMidRange = safeCpuCores >= 4 && safeMemoryGB >= (modelReqs.recommendedRamGB * 1.25);
+    
+    if (isHighEnd && hasRecommendedMemory) {
+      // High-end system with ample memory
+      cpuUsage = Math.min(maxSafeCpuUsage * 0.8, 60); // Max 60% even on high-end
+      threads = Math.min(maxUsableCores, modelReqs.cpuIntensive ? 6 : 8);
+      memoryMB = Math.min(availableMemoryGB * 1024 * 0.7, 3072); // Max 3GB
+    } else if (isMidRange && hasRecommendedMemory) {
+      // Mid-range system
+      cpuUsage = Math.min(maxSafeCpuUsage * 0.7, 50); // Max 50%
+      threads = Math.min(maxUsableCores, modelReqs.cpuIntensive ? 4 : 6);
+      memoryMB = Math.min(availableMemoryGB * 1024 * 0.6, 2048); // Max 2GB
+    } else {
+      // Lower-end or tight memory - very conservative
+      cpuUsage = Math.min(maxSafeCpuUsage * 0.6, 40); // Max 40%
+      threads = Math.min(maxUsableCores, modelReqs.cpuIntensive ? 2 : 4);
+      memoryMB = Math.min(availableMemoryGB * 1024 * 0.5, 1024); // Max 1GB
+    }
+    
+    // SAFETY: Final validation and enforcement of absolute limits
+    cpuUsage = Math.max(20, Math.min(cpuUsage, 70)); // Hard limits: 20-70%
+    memoryMB = Math.max(256, Math.min(memoryMB, 4096)); // Hard limits: 256MB-4GB
+    threads = Math.max(1, Math.min(threads, safeCpuCores - 1)); // Always leave 1 core
+    
+    // SAFETY: Background processing only on adequate systems
+    const backgroundProcessing = !modelReqs.cpuIntensive && 
+                               safeCpuCores >= 4 && 
+                               availableMemoryGB >= 2 &&
+                               cpuUsage <= 50;
+    
+    // SAFETY: Always enable thermal throttling except on very high-end systems
+    const thermalThrottling = !(isHighEnd && safeCpuCores >= 12 && !modelReqs.cpuIntensive);
     
     return {
       max_cpu_usage: Math.round(cpuUsage),
@@ -156,9 +212,15 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
 
     const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
     const modelReqs = getModelRequirements(selectedModel || "");
-    const maxMemory = Math.max(total_memory_gb * 1024, 1024); // At least 1GB
-    const maxThreads = Math.max(cpu_cores, 2);
-    const availableMemory = maxMemory - (modelReqs.ramGB * 1024); // Memory after model
+    
+    // SAFETY: Validate inputs
+    const safeCpuCores = Math.max(cpu_cores || 2, 1);
+    const safeMemoryGB = Math.max(total_memory_gb || 4, 2);
+    
+    // SAFETY: Calculate safe memory allocation
+    const systemReserve = Math.max(safeMemoryGB * 0.15, 2);
+    const modelMemoryNeed = modelReqs.recommendedRamGB;
+    const availableMemoryGB = Math.max(safeMemoryGB - systemReserve - modelMemoryNeed, 0.5);
     
     const modelName = selectedModel ? selectedModel.split(':')[0] : 'selected model';
     
@@ -167,30 +229,30 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
         name: "Power Saver",
         description: `Minimal usage while running ${modelName}`,
         config: {
-          max_cpu_usage: 25,
-          max_memory_usage_mb: Math.min(512, Math.round(availableMemory * 0.15)),
+          max_cpu_usage: 20,
+          max_memory_usage_mb: Math.max(256, Math.min(512, Math.round(availableMemoryGB * 1024 * 0.3))),
           enable_gpu_acceleration: false,
-          processing_threads: Math.max(1, Math.floor(maxThreads * 0.25)),
+          processing_threads: Math.max(1, Math.floor(safeCpuCores * 0.25)),
           enable_background_processing: false,
           thermal_throttling: true,
         }
       },
       {
         name: "Model Optimized",
-        description: `Optimized for ${modelName} on your ${cpu_cores}-core system`,
+        description: `Optimized for ${modelName} on your ${safeCpuCores}-core system`,
         config: generateOptimizedConfig(analysis, selectedModel),
         isRecommended: true
       },
       {
-        name: "Maximum Performance",
-        description: `Maximum resources for ${modelName}`,
+        name: "High Performance",
+        description: `Enhanced performance for ${modelName} (use with caution)`,
         config: {
-          max_cpu_usage: Math.min(85, modelReqs.cpuIntensive ? 80 : 70),
-          max_memory_usage_mb: Math.min(Math.round(availableMemory * 0.5), 4096),
+          max_cpu_usage: Math.min(modelReqs.maxSafeCpuUsage, 65), // Respect model-specific limits
+          max_memory_usage_mb: Math.max(512, Math.min(3072, Math.round(availableMemoryGB * 1024 * 0.8))),
           enable_gpu_acceleration: gpu_acceleration && modelReqs.gpuBenefit,
-          processing_threads: Math.max(1, maxThreads - 1),
-          enable_background_processing: cpu_cores >= 4 && !modelReqs.cpuIntensive,
-          thermal_throttling: cpu_cores < 8 || modelReqs.cpuIntensive,
+          processing_threads: Math.max(1, Math.min(safeCpuCores - 1, modelReqs.cpuIntensive ? 6 : 8)),
+          enable_background_processing: safeCpuCores >= 6 && !modelReqs.cpuIntensive && availableMemoryGB >= 2,
+          thermal_throttling: safeCpuCores < 12 || modelReqs.cpuIntensive,
         }
       }
     ];
@@ -250,7 +312,7 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
                 </p>
                 {onboardingState.selectedModel && (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Model needs ~{getModelRequirements(onboardingState.selectedModel).ramGB}GB RAM
+                    Model needs {getModelRequirements(onboardingState.selectedModel).minRamGB}-{getModelRequirements(onboardingState.selectedModel).recommendedRamGB}GB RAM
                   </p>
                 )}
               </div>
@@ -481,9 +543,11 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
             <div className="flex items-center space-x-2 mt-1">
               <div className="flex space-x-1">
                 {[1, 2, 3, 4, 5].map((i) => {
-                  const totalMemoryUsage = config.max_memory_usage_mb + (onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel).ramGB * 1024 : 0);
-                  const systemMemory = onboardingState.systemAnalysis?.total_memory_gb || 8;
-                  const memoryScore = Math.floor((totalMemoryUsage / (systemMemory * 1024)) * 5);
+                  const modelReqs = onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel) : null;
+                  const modelMemoryMB = modelReqs ? modelReqs.recommendedRamGB * 1024 : 0;
+                  const totalMemoryUsage = config.max_memory_usage_mb + modelMemoryMB;
+                  const systemMemoryMB = (onboardingState.systemAnalysis?.total_memory_gb || 8) * 1024;
+                  const memoryScore = Math.min(5, Math.floor((totalMemoryUsage / systemMemoryMB) * 5));
                   return (
                     <div
                       key={i}
@@ -496,10 +560,12 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
               </div>
               <span className="text-gray-600 dark:text-gray-400">
                 {(() => {
-                  const totalMemoryUsage = config.max_memory_usage_mb + (onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel).ramGB * 1024 : 0);
-                  const systemMemory = onboardingState.systemAnalysis?.total_memory_gb || 8;
-                  const memoryPercent = (totalMemoryUsage / (systemMemory * 1024)) * 100;
-                  return memoryPercent > 60 ? 'High' : memoryPercent > 30 ? 'Medium' : 'Low';
+                  const modelReqs = onboardingState.selectedModel ? getModelRequirements(onboardingState.selectedModel) : null;
+                  const modelMemoryMB = modelReqs ? modelReqs.recommendedRamGB * 1024 : 0;
+                  const totalMemoryUsage = config.max_memory_usage_mb + modelMemoryMB;
+                  const systemMemoryMB = (onboardingState.systemAnalysis?.total_memory_gb || 8) * 1024;
+                  const memoryPercent = (totalMemoryUsage / systemMemoryMB) * 100;
+                  return memoryPercent > 70 ? 'High' : memoryPercent > 40 ? 'Medium' : 'Low';
                 })()}
               </span>
             </div>
@@ -551,8 +617,9 @@ export function PerformanceSetupStep({ onNext, onBack }: PerformanceSetupStepPro
         {onboardingState.selectedModel && (
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <p className="text-sm text-blue-800 dark:text-blue-300">
-              <strong>Model Impact:</strong> {onboardingState.selectedModel} will use approximately {getModelRequirements(onboardingState.selectedModel).ramGB}GB of RAM
+              <strong>Model Impact:</strong> {onboardingState.selectedModel} will use {getModelRequirements(onboardingState.selectedModel).minRamGB}-{getModelRequirements(onboardingState.selectedModel).recommendedRamGB}GB of RAM
               {getModelRequirements(onboardingState.selectedModel).cpuIntensive ? ' and is CPU-intensive' : ' with moderate CPU usage'}.
+              Maximum safe CPU usage for this model is {getModelRequirements(onboardingState.selectedModel).maxSafeCpuUsage}%.
             </p>
           </div>
         )}
