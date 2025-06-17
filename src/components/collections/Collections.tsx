@@ -85,9 +85,20 @@ export function Collections() {
           
           try {
             if (isTauriApp()) {
-              // Get location-specific statistics from backend
-              const locationStats = await safeInvoke('get_location_stats', { path: folderPath });
-              if (locationStats) {
+              console.log('Getting stats for:', folderPath);
+              
+              // Add timeout to prevent hanging
+              const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Timeout')), 5000);
+              });
+              
+              const statsPromise = safeInvoke('get_location_stats', { path: folderPath });
+              
+              const locationStats = await Promise.race([statsPromise, timeoutPromise]);
+              
+              console.log('Received stats:', locationStats);
+              
+              if (locationStats && typeof locationStats === 'object') {
                 filesCount = locationStats.total_files || 0;
                 processedCount = locationStats.processed_files || 0;
                 pendingCount = locationStats.pending_files || 0;
@@ -108,9 +119,13 @@ export function Collections() {
               errorCount = Math.max(0, filesCount - processedCount - pendingCount);
             }
           } catch (error) {
-            console.error('Error getting location statistics:', error);
+            console.error('Error getting location statistics for', folderPath, ':', error);
             status = 'error';
             errorCount = 1;
+            // Use fallback data when backend call fails
+            filesCount = 1;
+            processedCount = 0;
+            pendingCount = 0;
           }
           
           return {
