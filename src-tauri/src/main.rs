@@ -3,13 +3,27 @@
 
 use std::sync::Arc;
 use tauri::{Manager, State};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, Mutex};
 use serde_json;
 use sysinfo::{System, SystemExt, CpuExt, DiskExt};
+
+mod database;
+mod file_monitor;
+mod content_extractor;
+mod ai_processor;
+mod processing_queue;
+
+use database::Database;
+use file_monitor::FileMonitor;
+use ai_processor::AIProcessor;
+use processing_queue::{ProcessingQueue, JobPriority};
 
 #[derive(Debug)]
 pub struct AppState {
     pub config: Arc<RwLock<AppConfig>>,
+    pub database: Database,
+    pub file_monitor: FileMonitor,
+    pub processing_queue: Arc<Mutex<ProcessingQueue>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -84,34 +98,98 @@ async fn get_system_info() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-async fn start_file_monitoring(paths: Vec<String>) -> Result<(), String> {
-    println!("Starting file monitoring for paths: {:?}", paths);
+async fn start_file_monitoring(paths: Vec<String>, state: State<'_, AppState>) -> Result<(), String> {
+    tracing::info!("Starting file monitoring for paths: {:?}", paths);
+    
+    for path in paths {
+        if let Err(e) = state.file_monitor.add_watch_path(&path).await {
+            tracing::error!("Failed to add watch path {}: {}", path, e);
+            return Err(format!("Failed to add watch path {}: {}", path, e));
+        }
+    }
+    
+    if let Err(e) = state.file_monitor.start_monitoring().await {
+        tracing::error!("Failed to start file monitoring: {}", e);
+        return Err(format!("Failed to start file monitoring: {}", e));
+    }
+    
+    // Requeue any pending files for processing
+    if let Err(e) = state.processing_queue.lock().await.requeue_pending_files().await {
+        tracing::error!("Failed to requeue pending files: {}", e);
+    }
+    
     Ok(())
 }
 
 #[tauri::command]
-async fn search_files(query: String, filters: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
-    println!("Searching for: {}", query);
-    let results = serde_json::json!({
-        "results": [],
-        "total": 0,
+async fn search_files(query: String, filters: Option<serde_json::Value>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Searching for: {}", query);
+    
+    let start_time = std::time::Instant::now();
+    
+    // Perform search in database
+    let search_results = match state.database.search_files(&query, 50, 0).await {
+        Ok(files) => files,
+        Err(e) => {
+            tracing::error!("Search failed: {}", e);
+            return Err(format!("Search failed: {}", e));
+        }
+    };
+    
+    // Convert to frontend format
+    let results: Vec<serde_json::Value> = search_results
+        .iter()
+        .map(|file| {
+            serde_json::json!({
+                "file": {
+                    "id": file.id,
+                    "path": file.path,
+                    "name": file.name,
+                    "extension": file.extension,
+                    "size": file.size,
+                    "created_at": file.created_at,
+                    "modified_at": file.modified_at,
+                    "mime_type": file.mime_type,
+                    "processing_status": file.processing_status
+                },
+                "score": 0.85, // TODO: Implement proper relevance scoring
+                "snippet": file.ai_analysis.as_ref()
+                    .map(|analysis| {
+                        if analysis.len() > 200 {
+                            format!("{}...", &analysis[..200])
+                        } else {
+                            analysis.clone()
+                        }
+                    })
+                    .unwrap_or_else(|| "No analysis available".to_string()),
+                "highlights": file.tags.as_ref()
+                    .and_then(|tags| serde_json::from_str::<Vec<String>>(tags).ok())
+                    .unwrap_or_default()
+            })
+        })
+        .collect();
+    
+    let execution_time = start_time.elapsed().as_millis();
+    
+    let response = serde_json::json!({
+        "results": results,
+        "total": results.len(),
         "query": query,
-        "execution_time_ms": 10
+        "execution_time_ms": execution_time
     });
-    Ok(results)
+    
+    Ok(response)
 }
 
 #[tauri::command]
-async fn get_processing_status() -> Result<serde_json::Value, String> {
-    let status = serde_json::json!({
-        "total_processed": 0,
-        "queue_size": 0,
-        "current_processing": 0,
-        "errors": 0,
-        "average_processing_time_ms": 0.0,
-        "last_processed_at": serde_json::Value::Null
-    });
-    Ok(status)
+async fn get_processing_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    match state.processing_queue.lock().await.get_statistics().await {
+        Ok(stats) => Ok(stats),
+        Err(e) => {
+            tracing::error!("Failed to get processing status: {}", e);
+            Err(format!("Failed to get processing status: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -200,11 +278,61 @@ async fn get_available_models() -> Result<serde_json::Value, String> {
     }
 }
 
-fn main() {
+#[tauri::command]
+async fn scan_directory(path: String, state: State<'_, AppState>) -> Result<(), String> {
+    tracing::info!("Starting directory scan: {}", path);
+    
+    match state.file_monitor.scan_directory(&path).await {
+        Ok(()) => {
+            tracing::info!("Directory scan completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Directory scan failed: {}", e);
+            Err(format!("Directory scan failed: {}", e))
+        }
+    }
+}
+
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt::init();
+
+    // Initialize database
+    let data_dir = dirs::data_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("MetaMind");
+    
+    let database = Database::new(data_dir.join("metamind.db"))
+        .await
+        .expect("Failed to initialize database");
+
+    // Initialize AI processor
+    let ai_processor = AIProcessor::new(
+        "http://localhost:11434".to_string(),
+        "llama3.1:8b".to_string(),
+    );
+
+    // Initialize file monitor
+    let file_monitor = FileMonitor::new(database.clone());
+
+    // Initialize processing queue
+    let processing_queue = ProcessingQueue::new(
+        database.clone(),
+        ai_processor,
+        4, // max concurrent jobs
+    );
+
+    // Start the processing queue
+    if let Err(e) = processing_queue.start_processing().await {
+        tracing::error!("Failed to start processing queue: {}", e);
+    }
 
     let app_state = AppState {
         config: Arc::new(RwLock::new(AppConfig::default())),
+        database,
+        file_monitor,
+        processing_queue: Arc::new(Mutex::new(processing_queue)),
     };
 
     tauri::Builder::default()
@@ -220,10 +348,11 @@ fn main() {
             start_system_monitoring,
             stop_system_monitoring,
             get_search_suggestions,
-            get_available_models
+            get_available_models,
+            scan_directory
         ])
         .setup(|app| {
-            println!("MetaMind is starting up!");
+            tracing::info!("MetaMind is starting up!");
             Ok(())
         })
         .run(tauri::generate_context!())
