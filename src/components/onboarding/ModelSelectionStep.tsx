@@ -4,6 +4,7 @@ import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { SystemAnalysis } from "../../types";
 import { invoke } from "@tauri-apps/api/tauri";
+import { isTauriApp } from "../../utils/tauri";
 
 interface ModelSelectionStepProps {
   onNext: () => void;
@@ -94,6 +95,7 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
   const [selectedModel, setSelectedModel] = useState("");
   const [availableModels, setAvailableModels] = useState(fallbackModels.map(m => ({ ...m, recommended: false, compatible: true })));
   const [isLoadingModels, setIsLoadingModels] = useState(true);
+  const [ollamaStatus, setOllamaStatus] = useState<'checking' | 'connected' | 'not_found'>('checking');
   const { updateOnboardingState, onboardingState } = useAppStore();
 
   // Get system analysis from previous step
@@ -103,6 +105,29 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
   const formatSize = (sizeInBytes: number) => {
     const gb = sizeInBytes / (1024 * 1024 * 1024);
     return `${gb.toFixed(1)} GB`;
+  };
+
+  // Function to check Ollama models via direct API call
+  const checkOllamaModels = async () => {
+    try {
+      const response = await fetch('http://localhost:11434/api/tags', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Ollama models found:', data);
+      return data;
+    } catch (error) {
+      console.warn('Failed to connect to Ollama:', error);
+      throw error;
+    }
   };
 
   // Function to extract model info from Ollama response
@@ -152,7 +177,26 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
     const loadAvailableModels = async () => {
       setIsLoadingModels(true);
       try {
-        const response = await invoke('get_available_models') as any;
+        let response;
+        
+        // Try direct Ollama API first (works in both web and Tauri modes)
+        try {
+          response = await checkOllamaModels();
+          setOllamaStatus('connected');
+        } catch (ollamaError) {
+          // Fallback to Tauri backend if available
+          if (isTauriApp()) {
+            try {
+              response = await invoke('get_available_models') as any;
+            } catch (tauriError) {
+              console.warn('Both Ollama API and Tauri backend failed:', { ollamaError, tauriError });
+              throw ollamaError; // Throw the original Ollama error
+            }
+          } else {
+            throw ollamaError;
+          }
+        }
+        
         const allModels = processOllamaModels(response);
         
         if (systemAnalysis) {
@@ -232,6 +276,7 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
         }
       } catch (error) {
         console.error('Failed to load models from Ollama:', error);
+        setOllamaStatus('not_found');
         // Use fallback models
         setAvailableModels(fallbackModels.map(m => ({ ...m, recommended: false, compatible: true })));
         setSelectedModel(fallbackModels[0].id);
@@ -242,6 +287,61 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
 
     loadAvailableModels();
   }, [systemAnalysis]);
+
+  const retryOllamaConnection = async () => {
+    setOllamaStatus('checking');
+    setIsLoadingModels(true);
+    
+    // Re-run the model loading function
+    try {
+      let response;
+      
+      // Try direct Ollama API first (works in both web and Tauri modes)
+      try {
+        response = await checkOllamaModels();
+        setOllamaStatus('connected');
+      } catch (ollamaError) {
+        // Fallback to Tauri backend if available
+        if (isTauriApp()) {
+          try {
+            response = await invoke('get_available_models') as any;
+            setOllamaStatus('connected');
+          } catch (tauriError) {
+            console.warn('Both Ollama API and Tauri backend failed:', { ollamaError, tauriError });
+            throw ollamaError;
+          }
+        } else {
+          throw ollamaError;
+        }
+      }
+      
+      const allModels = processOllamaModels(response);
+      
+      if (systemAnalysis) {
+        const modelsWithRecommendations = allModels.map(model => {
+          const hasEnoughMemory = systemAnalysis.total_memory_gb >= model.minMemoryGB;
+          const hasEnoughCores = systemAnalysis.cpu_cores >= model.minCpuCores;
+          const compatible = hasEnoughMemory && hasEnoughCores;
+          return { ...model, compatible, recommended: compatible };
+        });
+        setAvailableModels(modelsWithRecommendations);
+        const bestModel = modelsWithRecommendations.find(m => m.compatible && m.isInstalled) || 
+                         modelsWithRecommendations.find(m => m.compatible) || 
+                         allModels[0];
+        setSelectedModel(bestModel.id);
+      } else {
+        setAvailableModels(allModels.map(m => ({ ...m, recommended: false, compatible: true })));
+        setSelectedModel(allModels[0].id);
+      }
+    } catch (error) {
+      console.error('Retry failed:', error);
+      setOllamaStatus('not_found');
+      setAvailableModels(fallbackModels.map(m => ({ ...m, recommended: false, compatible: true })));
+      setSelectedModel(fallbackModels[0].id);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
 
   const handleNext = () => {
     updateOnboardingState({ selectedModel });
@@ -267,6 +367,36 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
             Your system: {systemAnalysis.total_memory_gb}GB RAM, {systemAnalysis.cpu_cores} CPU cores
           </p>
         )}
+        {!isLoadingModels && (
+          <div className="flex items-center justify-center mt-3">
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+              ollamaStatus === 'connected' 
+                ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                : ollamaStatus === 'not_found'
+                ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                ollamaStatus === 'connected' ? 'bg-green-500' : 
+                ollamaStatus === 'not_found' ? 'bg-yellow-500' : 'bg-gray-400'
+              }`} />
+              <span>
+                {ollamaStatus === 'connected' ? 'Ollama connected - showing installed models' :
+                 ollamaStatus === 'not_found' ? 'Ollama not found - showing available models' :
+                 'Checking Ollama...'}
+              </span>
+              {ollamaStatus === 'not_found' && (
+                <button
+                  onClick={retryOllamaConnection}
+                  className="ml-2 text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                  title="Retry connection to Ollama"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Scrollable Content */}
@@ -275,8 +405,13 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
 
       {isLoadingModels ? (
         <div className="text-center py-8">
-          <div className="spinner w-8 h-8 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading available models...</p>
+          <div className="w-8 h-8 mx-auto mb-4 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin"></div>
+          <p className="text-gray-600 dark:text-gray-400 mb-2">
+            {ollamaStatus === 'checking' ? 'Checking Ollama installation...' : 'Loading available models...'}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            This may take a moment if Ollama is starting up
+          </p>
         </div>
       ) : (
         <>
@@ -360,6 +495,31 @@ export function ModelSelectionStep({ onNext, onBack }: ModelSelectionStepProps) 
               </motion.div>
             ))}
           </div>
+
+          {ollamaStatus === 'not_found' && (
+            <div className="card-notion p-6 mb-6 text-left bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <svg className="w-5 h-5 text-yellow-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                Ollama Not Found
+              </h3>
+              <p className="text-gray-700 dark:text-gray-300 mb-3">
+                We couldn't connect to Ollama on your system. The models shown are available for download.
+              </p>
+              <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                <li>• Make sure Ollama is installed and running</li>
+                <li>• Download Ollama from <a href="https://ollama.ai" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ollama.ai</a></li>
+                <li>• Run <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">ollama serve</code> in terminal</li>
+              </ul>
+              <button
+                onClick={retryOllamaConnection}
+                className="text-sm px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+              >
+                Check Again
+              </button>
+            </div>
+          )}
 
           <div className="card-notion p-6 mb-8 text-left">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
