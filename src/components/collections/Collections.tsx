@@ -1,81 +1,173 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../common/Button";
-import { useCollectionsStore } from "../../stores/useCollectionsStore";
+import { useAppStore } from "../../stores/useAppStore";
+import { safeInvoke, isTauriApp } from "../../utils/tauri";
+import { open } from "@tauri-apps/api/dialog";
+
+interface MonitoredLocation {
+  id: string;
+  path: string;
+  type: 'folder' | 'file';
+  name: string;
+  addedAt: string;
+  status: 'active' | 'paused' | 'error';
+  filesCount: number;
+  processedCount: number;
+  pendingCount: number;
+  errorCount: number;
+  lastScan?: string;
+}
 
 export function Collections() {
-  const {
-    collections,
-    isLoading,
-    error,
-    loadCollections,
-    createCollection,
-    updateCollection,
-    deleteCollection,
-    selectCollection,
-    setError
-  } = useCollectionsStore();
+  const { onboardingState, updateOnboardingState } = useAppStore();
+  const [monitoredLocations, setMonitoredLocations] = useState<MonitoredLocation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [newCollectionName, setNewCollectionName] = useState("");
-  const [newCollectionDescription, setNewCollectionDescription] = useState("");
-  const [showCreateCollection, setShowCreateCollection] = useState(false);
-  const [editingCollection, setEditingCollection] = useState<{ id: string; name: string; description: string } | null>(null);
 
-  // Load collections on component mount
+  // Load monitored locations on component mount
   useEffect(() => {
-    loadCollections();
-  }, [loadCollections]);
+    loadMonitoredLocations();
+  }, []);
 
-  const handleCreateCollection = async () => {
-    if (newCollectionName.trim()) {
-      const newCollection = await createCollection(
-        newCollectionName.trim(),
-        newCollectionDescription.trim() || undefined
-      );
+  const loadMonitoredLocations = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
       
-      if (newCollection) {
-        setNewCollectionName("");
-        setNewCollectionDescription("");
-        setShowCreateCollection(false);
+      // Convert onboarding selected folders to monitored locations
+      const locations: MonitoredLocation[] = onboardingState.selectedFolders.map((folder, index) => {
+        const pathParts = folder.path.split('/');
+        const name = pathParts[pathParts.length - 1] || folder.path;
+        
+        return {
+          id: `location-${index}`,
+          path: folder.path,
+          type: folder.type,
+          name,
+          addedAt: new Date().toISOString(),
+          status: 'active' as const,
+          filesCount: Math.floor(Math.random() * 100), // Mock data for now
+          processedCount: Math.floor(Math.random() * 80),
+          pendingCount: Math.floor(Math.random() * 20),
+          errorCount: Math.floor(Math.random() * 5),
+          lastScan: new Date().toISOString(),
+        };
+      });
+      
+      setMonitoredLocations(locations);
+    } catch (error) {
+      console.error('Failed to load monitored locations:', error);
+      setError('Failed to load monitored locations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addNewLocation = async () => {
+    try {
+      if (isTauriApp()) {
+        const selected = await open({
+          directory: true,
+          multiple: true,
+          title: "Select folders to monitor"
+        });
+        
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected];
+          const newFolders = paths.map(path => ({ path, type: 'folder' as const }));
+          
+          // Update app store
+          updateOnboardingState({
+            selectedFolders: [...onboardingState.selectedFolders, ...newFolders]
+          });
+          
+          // Start monitoring
+          for (const folder of newFolders) {
+            await safeInvoke('start_file_monitoring', { paths: [folder.path] });
+          }
+          
+          // Reload locations
+          loadMonitoredLocations();
+        }
+      } else {
+        // Web mode - simulate adding a folder
+        const mockFolder = {
+          path: `/Users/Documents/New Folder ${Date.now()}`,
+          type: 'folder' as const
+        };
+        
+        updateOnboardingState({
+          selectedFolders: [...onboardingState.selectedFolders, mockFolder]
+        });
+        
+        loadMonitoredLocations();
+      }
+    } catch (error) {
+      console.error('Error adding location:', error);
+      setError('Failed to add location');
+    }
+  };
+
+  const removeLocation = async (locationId: string) => {
+    if (confirm("Stop monitoring this location? Files already processed will remain in the database.")) {
+      const location = monitoredLocations.find(l => l.id === locationId);
+      if (location) {
+        // Remove from app store
+        const updatedFolders = onboardingState.selectedFolders.filter(f => f.path !== location.path);
+        updateOnboardingState({ selectedFolders: updatedFolders });
+        
+        // TODO: Stop monitoring in backend
+        
+        // Reload locations
+        loadMonitoredLocations();
       }
     }
   };
 
-  const handleEditCollection = (collection: any) => {
-    setEditingCollection({
-      id: collection.id,
-      name: collection.name,
-      description: collection.description || ""
-    });
-  };
-
-  const handleUpdateCollection = async () => {
-    if (editingCollection && editingCollection.name.trim()) {
-      await updateCollection(editingCollection.id, {
-        name: editingCollection.name.trim(),
-        description: editingCollection.description.trim() || undefined
-      });
-      setEditingCollection(null);
+  const toggleLocationStatus = async (locationId: string) => {
+    const location = monitoredLocations.find(l => l.id === locationId);
+    if (location) {
+      const newStatus = location.status === 'active' ? 'paused' : 'active';
+      
+      setMonitoredLocations(prev => 
+        prev.map(l => l.id === locationId ? { ...l, status: newStatus } : l)
+      );
+      
+      // TODO: Implement pause/resume monitoring in backend
     }
   };
 
-  const handleDeleteCollection = async (collectionId: string) => {
-    if (confirm("Are you sure you want to delete this collection? This action cannot be undone.")) {
-      await deleteCollection(collectionId);
+  const rescanLocation = async (locationId: string) => {
+    const location = monitoredLocations.find(l => l.id === locationId);
+    if (location) {
+      try {
+        await safeInvoke('scan_directory', { path: location.path });
+        loadMonitoredLocations(); // Refresh the data
+      } catch (error) {
+        console.error('Failed to rescan location:', error);
+        setError('Failed to rescan location');
+      }
     }
   };
 
-  const handleCollectionClick = (collection: any) => {
-    selectCollection(collection);
-    // TODO: Navigate to collection detail view or show files in collection
-    console.log("Selected collection:", collection);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'text-green-600 dark:text-green-400';
+      case 'paused': return 'text-yellow-600 dark:text-yellow-400';
+      case 'error': return 'text-red-600 dark:text-red-400';
+      default: return 'text-gray-600 dark:text-gray-400';
+    }
   };
 
-  const colorClasses = {
-    blue: "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800",
-    green: "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800",
-    purple: "bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800",
-    gray: "bg-gray-100 dark:bg-gray-900/20 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-800",
+  const getStatusBg = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 dark:bg-green-900/20';
+      case 'paused': return 'bg-yellow-100 dark:bg-yellow-900/20';
+      case 'error': return 'bg-red-100 dark:bg-red-900/20';
+      default: return 'bg-gray-100 dark:bg-gray-900/20';
+    }
   };
 
   return (
@@ -84,20 +176,20 @@ export function Collections() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Collections</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Monitored Locations</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Organize your files into smart collections for better management
+              Manage folders and files being monitored for AI processing
             </p>
           </div>
           
           <Button 
-            onClick={() => setShowCreateCollection(true)}
+            onClick={addNewLocation}
             className="flex items-center space-x-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span>New Collection</span>
+            <span>Add Location</span>
           </Button>
         </div>
 
@@ -120,203 +212,117 @@ export function Collections() {
           </motion.div>
         )}
 
-        {/* Create Collection Modal */}
-        {showCreateCollection && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            onClick={() => setShowCreateCollection(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white dark:bg-gray-800 rounded-apple-lg p-6 w-full max-w-md mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
-                Create New Collection
-              </h3>
-              
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                  placeholder="Collection name"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-apple bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleCreateCollection()}
-                  autoFocus
-                />
-                
-                <textarea
-                  value={newCollectionDescription}
-                  onChange={(e) => setNewCollectionDescription(e.target.value)}
-                  placeholder="Description (optional)"
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-apple bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowCreateCollection(false);
-                    setNewCollectionName("");
-                    setNewCollectionDescription("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleCreateCollection}
-                  disabled={!newCollectionName.trim() || isLoading}
-                >
-                  {isLoading ? "Creating..." : "Create"}
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
 
-        {/* Edit Collection Modal */}
-        {editingCollection && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-            onClick={() => setEditingCollection(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="bg-white dark:bg-gray-800 rounded-apple-lg p-6 w-full max-w-md mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
-                Edit Collection
-              </h3>
-              
-              <div className="space-y-4">
-                <input
-                  type="text"
-                  value={editingCollection.name}
-                  onChange={(e) => setEditingCollection({...editingCollection, name: e.target.value})}
-                  placeholder="Collection name"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-apple bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleUpdateCollection()}
-                />
-                
-                <textarea
-                  value={editingCollection.description}
-                  onChange={(e) => setEditingCollection({...editingCollection, description: e.target.value})}
-                  placeholder="Description (optional)"
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-apple bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button
-                  variant="secondary"
-                  onClick={() => setEditingCollection(null)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleUpdateCollection}
-                  disabled={!editingCollection.name.trim() || isLoading}
-                >
-                  {isLoading ? "Updating..." : "Update"}
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* Collections Grid */}
+        {/* Monitored Locations Grid */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading collections...</span>
+            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading monitored locations...</span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {collections.map((collection, index) => (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {monitoredLocations.map((location, index) => (
               <motion.div
-                key={collection.id}
+                key={location.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className={`card-notion p-6 cursor-pointer hover:shadow-apple-lg transition-all ${
-                  colorClasses[collection.color as keyof typeof colorClasses] || colorClasses.gray
-                }`}
-                onClick={() => handleCollectionClick(collection)}
+                className={`card-notion p-6 transition-all ${getStatusBg(location.status)}`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{collection.icon}</span>
-                    <div>
-                      <h3 className="font-semibold text-base">{collection.name}</h3>
-                      <p className="text-sm opacity-80">{collection.description || "No description"}</p>
+                    <div className="p-2 rounded-lg bg-white/20">
+                      {location.type === 'folder' ? (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base truncate">{location.name}</h3>
+                      <p className="text-sm opacity-75 truncate">{location.path}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(location.status)} ${getStatusBg(location.status)}`}>
+                          {location.status.charAt(0).toUpperCase() + location.status.slice(1)}
+                        </span>
+                        <span className="text-xs opacity-60">
+                          Added {new Date(location.addedAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   
                   <div className="relative group">
-                    <button 
-                      className="p-1 rounded hover:bg-white/20 transition-colors"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Toggle dropdown menu
-                      }}
-                    >
+                    <button className="p-1 rounded hover:bg-white/20 transition-colors">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                       </svg>
                     </button>
                     
                     {/* Dropdown Menu */}
-                    <div className="absolute right-0 top-8 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-apple shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    <div className="absolute right-0 top-8 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-apple shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditCollection(collection);
-                        }}
+                        onClick={() => toggleLocationStatus(location.id)}
                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
-                        Edit
+                        {location.status === 'active' ? 'Pause' : 'Resume'}
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCollection(collection.id);
-                        }}
+                        onClick={() => rescanLocation(location.id)}
+                        className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Rescan
+                      </button>
+                      <button
+                        onClick={() => removeLocation(location.id)}
                         className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
-                        Delete
+                        Remove
                       </button>
                     </div>
                   </div>
                 </div>
                 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Files</span>
-                    <span className="text-lg font-bold">{collection.file_count}</span>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Files</div>
+                    <div className="text-lg font-semibold">{location.filesCount}</div>
                   </div>
-                  
-                  <div className="flex items-center justify-between text-sm opacity-75">
-                    <span>Last updated</span>
-                    <span>{new Date(collection.updated_at).toLocaleDateString()}</span>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Processed</div>
+                    <div className="text-lg font-semibold text-green-600">{location.processedCount}</div>
                   </div>
-                  
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Pending</div>
+                    <div className="text-lg font-semibold text-yellow-600">{location.pendingCount}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Errors</div>
+                    <div className="text-lg font-semibold text-red-600">{location.errorCount}</div>
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Processing Progress</span>
+                    <span>{Math.round((location.processedCount / location.filesCount) * 100)}%</span>
+                  </div>
                   <div className="w-full bg-white/20 rounded-full h-2">
                     <div 
-                      className="bg-white/40 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(collection.file_count / 10 * 100, 100)}%` }}
+                      className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(location.processedCount / location.filesCount) * 100}%` }}
                     />
                   </div>
+                  {location.lastScan && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Last scan: {new Date(location.lastScan).toLocaleString()}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -324,7 +330,7 @@ export function Collections() {
         )}
 
         {/* Empty State */}
-        {!isLoading && collections.length === 0 && (
+        {!isLoading && monitoredLocations.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -332,17 +338,17 @@ export function Collections() {
           >
             <div className="w-24 h-24 mx-auto mb-6 bg-gray-100 dark:bg-gray-800 rounded-apple-xl flex items-center justify-center">
               <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z" />
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              No Collections Yet
+              No Locations Being Monitored
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Create your first collection to organize your files
+              Add folders or files to start monitoring and AI processing
             </p>
-            <Button onClick={() => setShowCreateCollection(true)}>
-              Create Collection
+            <Button onClick={addNewLocation}>
+              Add Location
             </Button>
           </motion.div>
         )}
