@@ -73,43 +73,33 @@ impl ProcessingQueue {
                 };
                 
                 if let Some(job) = job {
-                    // Try to acquire semaphore for concurrent processing
-                    let sem_clone = semaphore.clone();
-                    if let Ok(permit) = sem_clone.try_acquire() {
-                        let db = database.clone();
-                        // let ai = ai_processor.clone(); // Temporarily disabled
-                        let queue_for_retry = queue.clone();
-                        
-                        tokio::spawn(async move {
-                            let _permit = permit; // Keep permit alive
+                    // Simplified processing without semaphore for now
+                    let db = database.clone();
+                    let queue_for_retry = queue.clone();
+                    
+                    tokio::spawn(async move {
+                        if let Err(e) = Self::process_job(&db, &job).await {
+                            tracing::error!("Job {} failed: {}", job.id, e);
                             
-                            if let Err(e) = Self::process_job(&db, &job).await {
-                                tracing::error!("Job {} failed: {}", job.id, e);
+                            // Retry logic
+                            if job.retry_count < max_retries {
+                                let mut retry_job = job.clone();
+                                retry_job.retry_count += 1;
+                                retry_job.created_at = Instant::now();
                                 
-                                // Retry logic
-                                if job.retry_count < max_retries {
-                                    let mut retry_job = job.clone();
-                                    retry_job.retry_count += 1;
-                                    retry_job.created_at = Instant::now();
-                                    
-                                    // Add delay before retry
-                                    tokio::time::sleep(Duration::from_secs(2u64.pow(retry_job.retry_count))).await;
-                                    
-                                    let mut queue_guard = queue_for_retry.write().await;
-                                    queue_guard.push_back(retry_job);
-                                } else {
-                                    // Mark as failed in database
-                                    if let Err(e) = db.update_file_status(&job.file_id, "error", Some(&e.to_string())).await {
-                                        tracing::error!("Failed to update file status: {}", e);
-                                    }
+                                // Add delay before retry
+                                tokio::time::sleep(Duration::from_secs(2u64.pow(retry_job.retry_count))).await;
+                                
+                                let mut queue_guard = queue_for_retry.write().await;
+                                queue_guard.push_back(retry_job);
+                            } else {
+                                // Mark as failed in database
+                                if let Err(e) = db.update_file_status(&job.file_id, "error", Some(&e.to_string())).await {
+                                    tracing::error!("Failed to update file status: {}", e);
                                 }
                             }
-                        });
-                    } else {
-                        // Put job back in queue if no worker available
-                        let mut queue_guard = queue.write().await;
-                        queue_guard.push_front(job);
-                    }
+                        }
+                    });
                 }
             }
         });
