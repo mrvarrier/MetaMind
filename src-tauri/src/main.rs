@@ -303,6 +303,11 @@ async fn main() {
         .unwrap_or_else(|| std::env::current_dir().unwrap())
         .join("MetaMind");
     
+    // Ensure data directory exists
+    if let Err(e) = tokio::fs::create_dir_all(&data_dir).await {
+        tracing::error!("Failed to create data directory: {}", e);
+    }
+    
     let database = Database::new(data_dir.join("metamind.db"))
         .await
         .expect("Failed to initialize database");
