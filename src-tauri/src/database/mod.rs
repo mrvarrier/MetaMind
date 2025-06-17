@@ -486,7 +486,7 @@ impl Database {
         )
         .bind(file_id)
         .bind(collection_id)
-        .bind(now)
+        .bind(&now)
         .execute(&self.pool)
         .await?;
 
@@ -502,7 +502,7 @@ impl Database {
             "#
         )
         .bind(collection_id)
-        .bind(now)
+        .bind(&now)
         .bind(collection_id)
         .execute(&self.pool)
         .await?;
