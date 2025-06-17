@@ -24,12 +24,29 @@ export function Collections() {
   const [monitoredLocations, setMonitoredLocations] = useState<MonitoredLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
 
-  // Load monitored locations on component mount
+  // Load monitored locations on component mount and set up auto-refresh
   useEffect(() => {
     loadMonitoredLocations();
-  }, []);
+    
+    // Set up auto-refresh every 3 seconds when there's active processing
+    const interval = setInterval(() => {
+      if (autoRefresh) {
+        // Check if there are any pending or processing files
+        const hasActiveProcessing = monitoredLocations.some(location => 
+          location.pendingCount > 0 || location.status === 'active'
+        );
+        
+        if (hasActiveProcessing) {
+          loadMonitoredLocations();
+        }
+      }
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [autoRefresh, monitoredLocations]);
 
   const loadMonitoredLocations = async () => {
     try {
@@ -534,6 +551,30 @@ export function Collections() {
           </div>
           
           <div className="flex items-center space-x-3">
+            <Button 
+              onClick={() => loadMonitoredLocations()}
+              variant="outline"
+              className="flex items-center space-x-2"
+              disabled={isLoading}
+            >
+              <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </Button>
+            
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
+                autoRefresh 
+                  ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200' 
+                  : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={autoRefresh ? 'Auto-refresh enabled' : 'Auto-refresh disabled'}
+            >
+              {autoRefresh ? '🔄 Auto' : '⏸️ Manual'}
+            </button>
+            
             <Button 
               onClick={addNewFolder}
               className="flex items-center space-x-2"

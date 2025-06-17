@@ -75,6 +75,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let bytes = fs::read(path).await?;
         
+        // Try pdf-extract first, fallback to basic file info if it fails
         match pdf_extract::extract_text_from_mem(&bytes) {
             Ok(text) => {
                 let mut metadata = ContentMetadata::default();
@@ -83,29 +84,6 @@ impl ContentExtractor {
                 if let Ok(doc) = lopdf::Document::load_mem(&bytes) {
                     // Get page count
                     metadata.page_count = Some(doc.get_pages().len() as u32);
-                    
-                    // TODO: Re-enable metadata extraction once API issues are resolved
-                    /*
-                    if let Ok(info) = doc.trailer.get(b"Info") {
-                        if let Ok(info_dict) = info.as_dict() {
-                            if let Ok(title) = info_dict.get(b"Title") {
-                                if let Ok(title_str) = title.as_string() {
-                                    metadata.title = Some(title_str.to_string());
-                                }
-                            }
-                            if let Ok(author) = info_dict.get(b"Author") {
-                                if let Ok(author_str) = author.as_string() {
-                                    metadata.author = Some(author_str.to_string());
-                                }
-                            }
-                            if let Ok(subject) = info_dict.get(b"Subject") {
-                                if let Ok(subject_str) = subject.as_string() {
-                                    metadata.subject = Some(subject_str.to_string());
-                                }
-                            }
-                        }
-                    }
-                    */
                 }
                 
                 // Count words
@@ -117,7 +95,30 @@ impl ContentExtractor {
                     file_type: "pdf".to_string(),
                 })
             }
-            Err(e) => Err(anyhow!("Failed to extract PDF content: {}", e)),
+            Err(e) => {
+                // PDF extraction failed - check if it's a corrupted PDF
+                if e.to_string().contains("Invalid file trailer") || 
+                   e.to_string().contains("PDF error") ||
+                   e.to_string().contains("trailer") {
+                    
+                    // Create a minimal record for corrupted PDFs
+                    let file_name = path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("unknown.pdf");
+                    
+                    let mut metadata = ContentMetadata::default();
+                    metadata.word_count = Some(0);
+                    
+                    Ok(ExtractedContent {
+                        text: format!("CORRUPTED PDF: {} - This PDF file appears to be corrupted or incomplete. File size: {} bytes. Unable to extract text content.", 
+                                     file_name, bytes.len()),
+                        metadata,
+                        file_type: "pdf_corrupted".to_string(),
+                    })
+                } else {
+                    Err(anyhow!("Failed to extract PDF content: {}", e))
+                }
+            }
         }
     }
 
