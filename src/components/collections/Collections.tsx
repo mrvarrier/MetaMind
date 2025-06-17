@@ -36,44 +36,80 @@ export function Collections() {
       setIsLoading(true);
       setError(null);
       
-      console.log('Loading monitored locations...');
-      console.log('Onboarding state:', onboardingState);
-      console.log('Selected folders:', onboardingState.selectedFolders);
-      
       // Check if selectedFolders exists and is an array
       if (!onboardingState.selectedFolders || !Array.isArray(onboardingState.selectedFolders)) {
-        console.log('No selected folders or not an array, showing empty state');
         setMonitoredLocations([]);
         return;
       }
       
       // Convert onboarding selected folders to monitored locations
-      const locations: MonitoredLocation[] = onboardingState.selectedFolders.map((folder, index) => {
-        console.log('Processing folder:', folder);
-        
-        // Handle both string paths (legacy) and objects with path/type
-        const folderPath = typeof folder === 'string' ? folder : folder.path;
-        const folderType = typeof folder === 'string' ? 'folder' : folder.type;
-        
-        const pathParts = folderPath.split('/');
-        const name = pathParts[pathParts.length - 1] || folderPath;
-        
-        return {
-          id: `location-${index}`,
-          path: folderPath,
-          type: folderType,
-          name,
-          addedAt: new Date().toISOString(),
-          status: 'active' as const,
-          filesCount: Math.floor(Math.random() * 100), // Mock data for now
-          processedCount: Math.floor(Math.random() * 80),
-          pendingCount: Math.floor(Math.random() * 20),
-          errorCount: Math.floor(Math.random() * 5),
-          lastScan: new Date().toISOString(),
-        };
-      });
+      const locations: MonitoredLocation[] = await Promise.all(
+        onboardingState.selectedFolders.map(async (folder, index) => {
+          // Handle both string paths (legacy) and objects with path/type
+          const folderPath = typeof folder === 'string' ? folder : folder.path;
+          const folderType = typeof folder === 'string' ? 'folder' : folder.type;
+          
+          const pathParts = folderPath.split('/');
+          const name = pathParts[pathParts.length - 1] || folderPath;
+          
+          // Get real processing statistics from backend
+          let filesCount = 0;
+          let processedCount = 0;
+          let pendingCount = 0;
+          let errorCount = 0;
+          let status: 'active' | 'paused' | 'error' = 'active';
+          
+          try {
+            if (isTauriApp()) {
+              // Get processing status from backend
+              const processingStatus = await safeInvoke('get_processing_status');
+              if (processingStatus && processingStatus.database) {
+                // Use real data from backend
+                const stats = processingStatus.database;
+                filesCount = stats.total_files || 0;
+                processedCount = stats.processed_files || 0;
+                pendingCount = stats.pending_files || 0;
+                errorCount = stats.error_files || 0;
+              }
+              
+              // Try to scan the directory to get file count
+              try {
+                await safeInvoke('scan_directory', { path: folderPath });
+                status = 'active';
+              } catch (scanError) {
+                console.warn('Failed to scan directory:', scanError);
+                status = 'error';
+                errorCount = 1;
+              }
+            } else {
+              // Web mode - use some realistic mock data
+              filesCount = Math.floor(Math.random() * 50) + 10;
+              processedCount = Math.floor(filesCount * 0.7);
+              pendingCount = filesCount - processedCount - Math.floor(Math.random() * 3);
+              errorCount = Math.max(0, filesCount - processedCount - pendingCount);
+            }
+          } catch (error) {
+            console.error('Error getting folder statistics:', error);
+            status = 'error';
+            errorCount = 1;
+          }
+          
+          return {
+            id: `location-${index}`,
+            path: folderPath,
+            type: folderType,
+            name,
+            addedAt: new Date().toISOString(),
+            status,
+            filesCount,
+            processedCount,
+            pendingCount,
+            errorCount,
+            lastScan: new Date().toISOString(),
+          };
+        })
+      );
       
-      console.log('Created locations:', locations);
       setMonitoredLocations(locations);
     } catch (error) {
       console.error('Failed to load monitored locations:', error);
@@ -130,16 +166,38 @@ export function Collections() {
   };
 
   const removeLocation = async (locationId: string) => {
-    if (confirm("Stop monitoring this location? Files already processed will remain in the database.")) {
-      const location = monitoredLocations.find(l => l.id === locationId);
-      if (location) {
+    const location = monitoredLocations.find(l => l.id === locationId);
+    if (!location) return;
+    
+    const confirmed = confirm(
+      `Stop monitoring "${location.name}"?\n\nFiles already processed will remain in the database, but no new files will be monitored from this location.`
+    );
+    
+    if (confirmed) {
+      try {
+        setError(null);
+        
+        // Remove from UI immediately
+        setMonitoredLocations(prev => prev.filter(l => l.id !== locationId));
+        
         // Remove from app store
-        const updatedFolders = onboardingState.selectedFolders.filter(f => f.path !== location.path);
+        const updatedFolders = onboardingState.selectedFolders.filter(folder => {
+          const folderPath = typeof folder === 'string' ? folder : folder.path;
+          return folderPath !== location.path;
+        });
         updateOnboardingState({ selectedFolders: updatedFolders });
         
-        // TODO: Stop monitoring in backend
+        // TODO: Stop monitoring in backend when that functionality is implemented
+        if (isTauriApp()) {
+          console.log('Stopped monitoring location:', location.path);
+          // await safeInvoke('stop_monitoring', { path: location.path });
+        }
         
-        // Reload locations
+        console.log(`Removed monitoring for: ${location.path}`);
+      } catch (error) {
+        console.error('Failed to remove location:', error);
+        setError('Failed to remove location');
+        // Reload to restore state
         loadMonitoredLocations();
       }
     }
@@ -147,27 +205,75 @@ export function Collections() {
 
   const toggleLocationStatus = async (locationId: string) => {
     const location = monitoredLocations.find(l => l.id === locationId);
-    if (location) {
+    if (!location) return;
+    
+    try {
       const newStatus = location.status === 'active' ? 'paused' : 'active';
       
+      // Update UI immediately for responsiveness
       setMonitoredLocations(prev => 
         prev.map(l => l.id === locationId ? { ...l, status: newStatus } : l)
       );
       
       // TODO: Implement pause/resume monitoring in backend
+      // For now, just simulate the action
+      console.log(`${newStatus === 'paused' ? 'Paused' : 'Resumed'} monitoring for:`, location.path);
+      
+      if (isTauriApp()) {
+        // In the future, implement backend pause/resume calls
+        // await safeInvoke(newStatus === 'paused' ? 'pause_monitoring' : 'resume_monitoring', { path: location.path });
+      }
+    } catch (error) {
+      console.error('Failed to toggle location status:', error);
+      setError('Failed to change monitoring status');
+      // Revert the status change on error
+      loadMonitoredLocations();
     }
   };
 
   const rescanLocation = async (locationId: string) => {
     const location = monitoredLocations.find(l => l.id === locationId);
-    if (location) {
-      try {
+    if (!location) return;
+    
+    try {
+      setError(null);
+      
+      // Update status to show it's rescanning
+      setMonitoredLocations(prev => 
+        prev.map(l => l.id === locationId ? { ...l, status: 'active' as const, lastScan: new Date().toISOString() } : l)
+      );
+      
+      if (isTauriApp()) {
+        console.log('Rescanning location:', location.path);
         await safeInvoke('scan_directory', { path: location.path });
-        loadMonitoredLocations(); // Refresh the data
-      } catch (error) {
-        console.error('Failed to rescan location:', error);
-        setError('Failed to rescan location');
+        
+        // Refresh the data to get updated counts
+        setTimeout(() => {
+          loadMonitoredLocations();
+        }, 1000); // Give backend time to process
+      } else {
+        // Web mode - simulate rescan with new random data
+        setTimeout(() => {
+          setMonitoredLocations(prev => 
+            prev.map(l => l.id === locationId ? { 
+              ...l, 
+              filesCount: Math.floor(Math.random() * 50) + 10,
+              processedCount: Math.floor(Math.random() * 40) + 5,
+              pendingCount: Math.floor(Math.random() * 15),
+              errorCount: Math.floor(Math.random() * 3),
+              lastScan: new Date().toISOString()
+            } : l)
+          );
+        }, 2000);
       }
+    } catch (error) {
+      console.error('Failed to rescan location:', error);
+      setError(`Failed to rescan: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Set status to error
+      setMonitoredLocations(prev => 
+        prev.map(l => l.id === locationId ? { ...l, status: 'error' as const } : l)
+      );
     }
   };
 
@@ -180,12 +286,41 @@ export function Collections() {
     }
   };
 
-  const getStatusBg = (status: string) => {
+  const getStatusDot = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 dark:bg-green-900/20';
-      case 'paused': return 'bg-yellow-100 dark:bg-yellow-900/20';
-      case 'error': return 'bg-red-100 dark:bg-red-900/20';
-      default: return 'bg-gray-100 dark:bg-gray-900/20';
+      case 'active': return 'bg-green-500';
+      case 'paused': return 'bg-yellow-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'active':
+        return (
+          <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293H15M9 10V9a2 2 0 012-2h2a2 2 0 012 2v1.586a1 1 0 01-.293.707L12 14l-2.707-2.707A1 1 0 019 10.586V10z" />
+          </svg>
+        );
+      case 'paused':
+        return (
+          <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case 'error':
+        return (
+          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
     }
   };
 
@@ -246,102 +381,119 @@ export function Collections() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className={`card-notion p-6 transition-all ${getStatusBg(location.status)}`}
+                className="bg-white dark:bg-gray-800 rounded-apple-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-apple-lg transition-all"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 rounded-lg bg-white/20">
+                  <div className="flex items-start space-x-3 flex-1 min-w-0">
+                    <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0">
                       {location.type === 'folder' ? (
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
                       ) : (
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-base truncate">{location.name}</h3>
-                      <p className="text-sm opacity-75 truncate">{location.path}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(location.status)} ${getStatusBg(location.status)}`}>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h3 className="font-semibold text-base text-gray-900 dark:text-white truncate">{location.name}</h3>
+                        <div className="flex items-center space-x-1 flex-shrink-0">
+                          {getStatusIcon(location.status)}
+                          <div className={`w-2 h-2 rounded-full ${getStatusDot(location.status)}`}></div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{location.path}</p>
+                      <div className="flex items-center space-x-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className={`font-medium ${getStatusColor(location.status)}`}>
                           {location.status.charAt(0).toUpperCase() + location.status.slice(1)}
                         </span>
-                        <span className="text-xs opacity-60">
+                        <span>
                           Added {new Date(location.addedAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="relative group">
-                    <button className="p-1 rounded hover:bg-white/20 transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="relative group flex-shrink-0">
+                    <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                       </svg>
                     </button>
                     
                     {/* Dropdown Menu */}
-                    <div className="absolute right-0 top-8 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-apple shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                      <button
-                        onClick={() => toggleLocationStatus(location.id)}
-                        className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        {location.status === 'active' ? 'Pause' : 'Resume'}
-                      </button>
-                      <button
-                        onClick={() => rescanLocation(location.id)}
-                        className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        Rescan
-                      </button>
-                      <button
-                        onClick={() => removeLocation(location.id)}
-                        className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                      >
-                        Remove
-                      </button>
+                    <div className="absolute right-0 top-10 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-apple-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20">
+                      <div className="p-1">
+                        <button
+                          onClick={() => toggleLocationStatus(location.id)}
+                          className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          {location.status === 'active' ? '⏸️ Pause' : '▶️ Resume'}
+                        </button>
+                        <button
+                          onClick={() => rescanLocation(location.id)}
+                          className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          🔄 Rescan
+                        </button>
+                        <button
+                          onClick={() => removeLocation(location.id)}
+                          className="w-full px-3 py-2 text-sm text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          🗑️ Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Files</div>
-                    <div className="text-lg font-semibold">{location.filesCount}</div>
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total</div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">{location.filesCount}</div>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Processed</div>
-                    <div className="text-lg font-semibold text-green-600">{location.processedCount}</div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Done</div>
+                    <div className="text-lg font-semibold text-green-600 dark:text-green-400">{location.processedCount}</div>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Pending</div>
-                    <div className="text-lg font-semibold text-yellow-600">{location.pendingCount}</div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Queue</div>
+                    <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">{location.pendingCount}</div>
                   </div>
-                  <div>
+                  <div className="text-center">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Errors</div>
-                    <div className="text-lg font-semibold text-red-600">{location.errorCount}</div>
+                    <div className="text-lg font-semibold text-red-600 dark:text-red-400">{location.errorCount}</div>
                   </div>
                 </div>
                 
                 {/* Progress Bar */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>Processing Progress</span>
-                    <span>{Math.round((location.processedCount / location.filesCount) * 100)}%</span>
+                    <span className="font-medium">
+                      {location.filesCount > 0 ? Math.round((location.processedCount / location.filesCount) * 100) : 0}%
+                    </span>
                   </div>
-                  <div className="w-full bg-white/20 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                     <div 
-                      className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(location.processedCount / location.filesCount) * 100}%` }}
+                      className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-500 ease-out"
+                      style={{ 
+                        width: `${location.filesCount > 0 ? (location.processedCount / location.filesCount) * 100 : 0}%` 
+                      }}
                     />
                   </div>
-                  {location.lastScan && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>
                       Last scan: {new Date(location.lastScan).toLocaleString()}
-                    </div>
-                  )}
+                    </span>
+                    {location.status === 'active' && location.pendingCount > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">
+                        🔄 Processing...
+                      </span>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             ))}
