@@ -125,20 +125,35 @@ impl ProcessingQueue {
         // Extract content from file
         let extracted_content = ContentExtractor::extract_content(&job.file_path).await?;
         
-        // Simple analysis without AI (for initial version)
-        let simple_summary = if extracted_content.text.len() > 200 {
-            format!("{}...", &extracted_content.text[..200])
+        tracing::debug!("Extracted content length: {} characters", extracted_content.text.len());
+        
+        // Limit content size to prevent database corruption (max 1MB of text)
+        const MAX_CONTENT_SIZE: usize = 1_000_000;
+        let truncated_content = if extracted_content.text.len() > MAX_CONTENT_SIZE {
+            tracing::warn!("Content too large ({}), truncating to {} characters", 
+                          extracted_content.text.len(), MAX_CONTENT_SIZE);
+            format!("{}...\n\n[Content truncated due to size limit]", 
+                   &extracted_content.text[..MAX_CONTENT_SIZE])
         } else {
             extracted_content.text.clone()
+        };
+        
+        // Simple analysis without AI (for initial version)
+        let simple_summary = if truncated_content.len() > 200 {
+            format!("{}...", &truncated_content[..200])
+        } else {
+            truncated_content.clone()
         };
         
         let basic_tags = vec![extracted_content.file_type.clone()];
         let tags_json = serde_json::to_string(&basic_tags)?;
         
+        tracing::debug!("Updating database with content length: {}", truncated_content.len());
+        
         // Update database with basic results
         database.update_file_analysis(
             &job.file_id,
-            &extracted_content.text, // Store full extracted content
+            &truncated_content, // Store truncated content to prevent corruption
             &simple_summary,
             Some(&tags_json),
             None, // No embeddings for now
