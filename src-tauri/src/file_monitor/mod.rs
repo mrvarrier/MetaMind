@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::SystemTime;
+// use std::time::SystemTime; // Unused import
 
 use anyhow::{Result, anyhow};
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher, Config};

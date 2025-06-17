@@ -84,18 +84,18 @@ impl ContentExtractor {
                     if let Ok(info) = doc.trailer.get(b"Info") {
                         if let Ok(info_dict) = info.as_dict() {
                             if let Ok(title) = info_dict.get(b"Title") {
-                                if let Ok(title_str) = title.as_str() {
-                                    metadata.title = Some(title_str.to_string());
+                                if let Ok(title_bytes) = title.as_string() {
+                                    metadata.title = Some(String::from_utf8_lossy(&title_bytes).to_string());
                                 }
                             }
                             if let Ok(author) = info_dict.get(b"Author") {
-                                if let Ok(author_str) = author.as_str() {
-                                    metadata.author = Some(author_str.to_string());
+                                if let Ok(author_bytes) = author.as_string() {
+                                    metadata.author = Some(String::from_utf8_lossy(&author_bytes).to_string());
                                 }
                             }
                             if let Ok(subject) = info_dict.get(b"Subject") {
-                                if let Ok(subject_str) = subject.as_str() {
-                                    metadata.subject = Some(subject_str.to_string());
+                                if let Ok(subject_bytes) = subject.as_string() {
+                                    metadata.subject = Some(String::from_utf8_lossy(&subject_bytes).to_string());
                                 }
                             }
                         }
