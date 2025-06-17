@@ -75,8 +75,8 @@ impl Database {
     }
 
     async fn run_migrations(&self) -> Result<()> {
-        // Enable FTS5 extension
-        sqlx::query("PRAGMA foreign_keys = ON").execute(&self.pool).await?;
+        // Disable foreign keys to avoid corruption issues during development
+        sqlx::query("PRAGMA foreign_keys = OFF").execute(&self.pool).await?;
         
         // Create main tables
         self.create_files_table().await?;
@@ -164,26 +164,25 @@ impl Database {
     }
 
     async fn create_fts_table(&self) -> Result<()> {
-        // Create FTS5 virtual table for full-text search
+        // Skip FTS5 for now to avoid corruption - create a simple search table instead
         sqlx::query(
             r#"
-            CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(
-                id UNINDEXED,
-                name,
-                content,
-                tags,
-                ai_analysis,
-                content='files',
-                content_rowid='rowid'
+            CREATE TABLE IF NOT EXISTS files_fts (
+                id TEXT NOT NULL,
+                name TEXT,
+                content TEXT,
+                tags TEXT,
+                ai_analysis TEXT,
+                PRIMARY KEY (id)
             )
             "#
         ).execute(&self.pool).await?;
 
-        // Create triggers to keep FTS table synchronized
+        // Create triggers to keep search table synchronized
         sqlx::query(
             r#"
             CREATE TRIGGER IF NOT EXISTS files_fts_insert AFTER INSERT ON files BEGIN
-                INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
+                INSERT OR REPLACE INTO files_fts(id, name, content, tags, ai_analysis) 
                 VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
             END
             "#
@@ -200,8 +199,7 @@ impl Database {
         sqlx::query(
             r#"
             CREATE TRIGGER IF NOT EXISTS files_fts_update AFTER UPDATE ON files BEGIN
-                DELETE FROM files_fts WHERE id = old.id;
-                INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
+                INSERT OR REPLACE INTO files_fts(id, name, content, tags, ai_analysis) 
                 VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
             END
             "#
@@ -364,18 +362,20 @@ impl Database {
 
     // Search operations
     pub async fn search_files(&self, query: &str, limit: i64, offset: i64) -> Result<Vec<FileRecord>> {
-        let fts_query = format!("\"{}\"", query.replace("\"", "\"\""));
+        // Simple LIKE search instead of FTS for now
+        let search_pattern = format!("%{}%", query);
         
         let rows = sqlx::query(
             r#"
             SELECT f.* FROM files f
-            JOIN files_fts fts ON f.id = fts.id
-            WHERE files_fts MATCH ?
-            ORDER BY bm25(files_fts)
+            WHERE f.name LIKE ? OR f.content LIKE ? OR f.ai_analysis LIKE ?
+            ORDER BY f.modified_at DESC
             LIMIT ? OFFSET ?
             "#
         )
-        .bind(fts_query)
+        .bind(&search_pattern)
+        .bind(&search_pattern)
+        .bind(&search_pattern)
         .bind(limit)
         .bind(offset)
         .fetch_all(&self.pool)
