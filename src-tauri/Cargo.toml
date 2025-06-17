@@ -30,6 +30,32 @@ num_cpus = "1.16"
 sysinfo = "0.29"
 reqwest = { version = "0.11", features = ["json"] }
 
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono", "json"] }
+
+# File system monitoring
+notify = "6.1"
+walkdir = "2.4"
+
+# Content extraction
+pdf-extract = "0.7"
+lopdf = "0.32"
+image = "0.24"
+exif = "0.7"
+
+# Text processing and embeddings
+tokenizers = "0.15"
+candle-core = "0.4"
+candle-nn = "0.4"
+candle-transformers = "0.4"
+
+# Search
+tantivy = "0.21"
+
+# File handling
+mime_guess = "2.0"
+infer = "0.15"
+
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
 # DO NOT REMOVE!!
