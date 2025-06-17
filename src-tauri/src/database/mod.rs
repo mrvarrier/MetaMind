@@ -1,7 +1,6 @@
 use sqlx::{SqlitePool, Row};
 use anyhow::Result;
 use std::path::Path;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
 

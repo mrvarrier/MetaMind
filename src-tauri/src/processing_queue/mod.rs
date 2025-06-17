@@ -74,8 +74,7 @@ impl ProcessingQueue {
                 
                 if let Some(job) = job {
                     // Try to acquire semaphore for concurrent processing
-                    let semaphore_clone = semaphore.clone();
-                    if let Ok(permit) = semaphore_clone.try_acquire() {
+                    if let Ok(permit) = semaphore.try_acquire() {
                         let db = database.clone();
                         // let ai = ai_processor.clone(); // Temporarily disabled
                         let queue_for_retry = queue.clone();

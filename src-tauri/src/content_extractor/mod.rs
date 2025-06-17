@@ -75,7 +75,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let bytes = fs::read(path).await?;
         
-        match pdf_extract::extract_text(&bytes) {
+        match pdf_extract::extract_text_from_mem(&bytes) {
             Ok(text) => {
                 let mut metadata = ContentMetadata::default();
                 

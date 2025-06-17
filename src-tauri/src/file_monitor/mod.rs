@@ -83,7 +83,7 @@ impl FileMonitor {
         let (tx, mut rx) = mpsc::channel::<FileEvent>(1000);
         
         // Start file watcher
-        let watcher_handle = self.start_file_watcher(tx.clone()).await?;
+        let _watcher_handle = self.start_file_watcher(tx.clone()).await?;
         
         // Start processing events
         let database = self.database.clone();
@@ -139,7 +139,7 @@ impl FileMonitor {
     async fn handle_notify_event(
         event: Event,
         tx: mpsc::Sender<FileEvent>,
-        watched_paths: Arc<RwLock<HashSet<PathBuf>>>,
+        _watched_paths: Arc<RwLock<HashSet<PathBuf>>>,
         excluded_patterns: Arc<RwLock<Vec<String>>>,
     ) -> Result<()> {
         let patterns = excluded_patterns.read().await;

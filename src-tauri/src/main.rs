@@ -16,7 +16,7 @@ mod processing_queue;
 use database::Database;
 use file_monitor::FileMonitor;
 // use ai_processor::AIProcessor; // Temporarily disabled
-use processing_queue::{ProcessingQueue, JobPriority};
+use processing_queue::ProcessingQueue;
 
 #[derive(Debug)]
 pub struct AppState {
@@ -122,7 +122,7 @@ async fn start_file_monitoring(paths: Vec<String>, state: State<'_, AppState>) -
 }
 
 #[tauri::command]
-async fn search_files(query: String, filters: Option<serde_json::Value>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+async fn search_files(query: String, _filters: Option<serde_json::Value>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     tracing::info!("Searching for: {}", query);
     
     let start_time = std::time::Instant::now();
