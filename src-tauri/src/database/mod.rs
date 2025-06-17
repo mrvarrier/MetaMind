@@ -329,6 +329,36 @@ impl Database {
         Ok(files)
     }
 
+    pub async fn get_error_files_in_location(&self, location_path: &str) -> Result<Vec<FileRecord>> {
+        let query = if std::path::Path::new(location_path).is_file() {
+            // For individual files, match exact path
+            r#"
+            SELECT * FROM files 
+            WHERE path = ? AND processing_status = 'error'
+            ORDER BY modified_at DESC
+            "#
+        } else {
+            // For directories, match files within that directory  
+            r#"
+            SELECT * FROM files 
+            WHERE path LIKE ? || '%' AND processing_status = 'error'
+            ORDER BY modified_at DESC
+            "#
+        };
+        
+        let rows = sqlx::query(query)
+            .bind(location_path)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut files = Vec::new();
+        for row in rows {
+            files.push(self.row_to_file_record(row)?);
+        }
+
+        Ok(files)
+    }
+
     pub async fn update_file_status(&self, file_id: &str, status: &str, error_message: Option<&str>) -> Result<()> {
         sqlx::query("UPDATE files SET processing_status = ?, error_message = ? WHERE id = ?")
             .bind(status)

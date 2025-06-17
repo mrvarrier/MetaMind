@@ -606,23 +606,61 @@ async fn get_file_errors(
     path: String,
     state: State<'_, AppState>
 ) -> Result<serde_json::Value, String> {
-    tracing::debug!("Getting error details for file: {}", path);
+    tracing::debug!("Getting error details for location: {}", path);
     
-    match state.database.get_file_by_path(&path).await {
-        Ok(Some(file)) => {
-            Ok(serde_json::json!({
-                "path": file.path,
-                "status": file.processing_status,
-                "error_message": file.error_message,
-                "last_attempt": file.modified_at
-            }))
+    // Check if it's a single file or a directory
+    if std::path::Path::new(&path).is_file() {
+        // Single file - get specific error
+        match state.database.get_file_by_path(&path).await {
+            Ok(Some(file)) => {
+                Ok(serde_json::json!({
+                    "type": "single_file",
+                    "path": file.path,
+                    "status": file.processing_status,
+                    "error_message": file.error_message,
+                    "last_attempt": file.modified_at
+                }))
+            }
+            Ok(None) => {
+                Err("File not found in database".to_string())
+            }
+            Err(e) => {
+                tracing::error!("Failed to get file error details: {}", e);
+                Err(format!("Failed to get file error details: {}", e))
+            }
         }
-        Ok(None) => {
-            Err("File not found in database".to_string())
-        }
-        Err(e) => {
-            tracing::error!("Failed to get file error details: {}", e);
-            Err(format!("Failed to get file error details: {}", e))
+    } else {
+        // Directory - get all error files in this location
+        match state.database.get_error_files_in_location(&path).await {
+            Ok(error_files) => {
+                if error_files.is_empty() {
+                    Ok(serde_json::json!({
+                        "type": "directory",
+                        "path": path,
+                        "message": "No error files found in this location"
+                    }))
+                } else {
+                    let errors: Vec<serde_json::Value> = error_files.iter().map(|file| {
+                        serde_json::json!({
+                            "path": file.path,
+                            "name": file.name,
+                            "error_message": file.error_message,
+                            "last_attempt": file.modified_at
+                        })
+                    }).collect();
+                    
+                    Ok(serde_json::json!({
+                        "type": "directory", 
+                        "path": path,
+                        "error_count": errors.len(),
+                        "errors": errors
+                    }))
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to get error files for location {}: {}", path, e);
+                Err(format!("Failed to get error files: {}", e))
+            }
         }
     }
 }

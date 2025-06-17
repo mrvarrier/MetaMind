@@ -444,12 +444,33 @@ export function Collections() {
     try {
       if (isTauriApp()) {
         const errorDetails = await safeInvoke('get_file_errors', { path: locationPath });
-        const errorMessage = errorDetails.error_message || 'Unknown processing error';
-        alert(`Error processing file:\n\nPath: ${locationPath}\nStatus: ${errorDetails.status}\nError: ${errorMessage}\nLast attempt: ${new Date(errorDetails.last_attempt).toLocaleString()}`);
+        
+        if (errorDetails.type === 'single_file') {
+          // Single file error
+          const errorMessage = errorDetails.error_message || 'Unknown processing error';
+          alert(`Error processing file:\n\nPath: ${errorDetails.path}\nStatus: ${errorDetails.status}\nError: ${errorMessage}\nLast attempt: ${new Date(errorDetails.last_attempt).toLocaleString()}`);
+        } else if (errorDetails.type === 'directory') {
+          // Directory with multiple error files
+          if (errorDetails.errors && errorDetails.errors.length > 0) {
+            let message = `Found ${errorDetails.error_count} error(s) in directory:\n${errorDetails.path}\n\nError files:\n`;
+            
+            errorDetails.errors.slice(0, 5).forEach((error: any, index: number) => {
+              message += `\n${index + 1}. ${error.name}\n   Error: ${error.error_message || 'Unknown error'}\n   Last attempt: ${new Date(error.last_attempt).toLocaleString()}\n`;
+            });
+            
+            if (errorDetails.errors.length > 5) {
+              message += `\n... and ${errorDetails.errors.length - 5} more error(s)`;
+            }
+            
+            alert(message);
+          } else {
+            alert(`No error files found in: ${errorDetails.path}`);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to get error details:', error);
-      alert('Failed to get error details');
+      alert('Failed to get error details: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
