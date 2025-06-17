@@ -41,16 +41,16 @@ walkdir = "2.4"
 pdf-extract = "0.7"
 lopdf = "0.32"
 image = "0.24"
-exif = "0.7"
+kamadak-exif = "0.5"
 
 # Text processing and embeddings
 tokenizers = "0.15"
-candle-core = "0.4"
-candle-nn = "0.4"
-candle-transformers = "0.4"
+candle-core = "0.6"
+candle-nn = "0.6"
+candle-transformers = "0.6"
 
 # Search
-tantivy = "0.21"
+tantivy = "0.22"
 
 # File handling
 mime_guess = "2.0"

@@ -155,7 +155,7 @@ impl ContentExtractor {
         }
         
         // Try to extract EXIF data
-        if let Ok(exif_reader) = exif::Reader::new() {
+        if let Ok(exif_reader) = kamadak_exif::Reader::new() {
             if let Ok(exif_data) = exif_reader.read_from_container(&mut std::io::Cursor::new(&bytes)) {
                 let mut exif_json = serde_json::Map::new();
                 
@@ -165,10 +165,10 @@ impl ContentExtractor {
                     exif_json.insert(tag_name, serde_json::Value::String(value_str.clone()));
                     
                     // Add important EXIF data to text for searching
-                    if field.tag == exif::Tag::DateTime || 
-                       field.tag == exif::Tag::Make || 
-                       field.tag == exif::Tag::Model ||
-                       field.tag == exif::Tag::Software {
+                    if field.tag == kamadak_exif::Tag::DateTime || 
+                       field.tag == kamadak_exif::Tag::Make || 
+                       field.tag == kamadak_exif::Tag::Model ||
+                       field.tag == kamadak_exif::Tag::Software {
                         text.push_str(&format!("{}: {}\n", field.tag, value_str));
                     }
                 }
