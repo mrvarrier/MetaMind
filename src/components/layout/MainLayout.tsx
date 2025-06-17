@@ -10,7 +10,7 @@ import { useAppStore } from "../../stores/useAppStore";
 export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
-  const { theme } = useAppStore();
+  const { theme, resetOnboarding } = useAppStore();
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
@@ -38,6 +38,20 @@ export function MainLayout() {
             <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
               MetaMind
             </span>
+          </div>
+          
+          {/* Development Reset Button */}
+          <div className="absolute right-4">
+            <button
+              onClick={() => {
+                resetOnboarding();
+                window.location.reload();
+              }}
+              className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+              title="Reset onboarding (dev only)"
+            >
+              Reset
+            </button>
           </div>
         </div>
 

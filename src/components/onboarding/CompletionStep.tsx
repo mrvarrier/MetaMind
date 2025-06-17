@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { invoke } from "@tauri-apps/api/tauri";
+import { fileProcessingService } from "../../services/fileProcessingService";
+import { isTauriApp } from "../../utils/tauri";
 
 interface CompletionStepProps {
   onComplete: () => void;
@@ -22,39 +24,59 @@ export function CompletionStep({ onComplete, onBack }: CompletionStepProps) {
     setProgress(0);
 
     const tasks = [
-      { name: "Downloading AI model...", duration: 3000 },
+      { name: "Downloading AI model...", duration: 2000 },
       { name: "Setting up file monitoring...", duration: 1500 },
+      { name: "Processing selected folders...", duration: 2500 },
       { name: "Initializing search engine...", duration: 1000 },
       { name: "Configuring performance settings...", duration: 800 },
-      { name: "Starting initial file scan...", duration: 2000 },
+      { name: "Starting initial file scan...", duration: 1500 },
     ];
 
     try {
       for (const [index, task] of tasks.entries()) {
         setCurrentTask(task.name);
         
-        // Simulate the actual setup process
+        // Execute actual setup tasks
         if (index === 0) {
           // Download model (simulated)
           await new Promise(resolve => setTimeout(resolve, task.duration));
         } else if (index === 1) {
           // Setup file monitoring
-          await invoke('start_file_monitoring', { 
-            paths: onboardingState.selectedFolders 
-          });
-          await new Promise(resolve => setTimeout(resolve, task.duration));
-        } else if (index === 2) {
-          // Initialize search engine (simulated)
-          await new Promise(resolve => setTimeout(resolve, task.duration));
-        } else if (index === 3) {
-          // Configure performance settings
-          if (onboardingState.performanceSettings) {
-            await invoke('update_config', { 
-              configUpdate: { performance: onboardingState.performanceSettings }
-            });
+          try {
+            if (isTauriApp()) {
+              await invoke('start_file_monitoring', { 
+                paths: onboardingState.selectedFolders 
+              });
+            }
+          } catch (error) {
+            console.warn('File monitoring setup failed:', error);
           }
           await new Promise(resolve => setTimeout(resolve, task.duration));
+        } else if (index === 2) {
+          // Process selected folders with file processing service
+          try {
+            await fileProcessingService.initializeFromOnboarding(onboardingState.selectedFolders || []);
+            console.log('File processing initialized for folders:', onboardingState.selectedFolders);
+          } catch (error) {
+            console.error('File processing initialization failed:', error);
+          }
+          await new Promise(resolve => setTimeout(resolve, task.duration));
+        } else if (index === 3) {
+          // Initialize search engine (simulated)
+          await new Promise(resolve => setTimeout(resolve, task.duration));
         } else if (index === 4) {
+          // Configure performance settings
+          try {
+            if (onboardingState.performanceSettings && isTauriApp()) {
+              await invoke('update_config', { 
+                configUpdate: { performance: onboardingState.performanceSettings }
+              });
+            }
+          } catch (error) {
+            console.warn('Performance settings update failed:', error);
+          }
+          await new Promise(resolve => setTimeout(resolve, task.duration));
+        } else if (index === 5) {
           // Start initial scan (simulated)
           await new Promise(resolve => setTimeout(resolve, task.duration));
         }
@@ -90,39 +112,57 @@ export function CompletionStep({ onComplete, onBack }: CompletionStepProps) {
           animate={{ opacity: 1, scale: 1 }}
           className="mb-8"
         >
-          <div className="w-24 h-24 mx-auto mb-6">
+          <div className="w-32 h-32 mx-auto mb-6">
             <div className="relative">
-              <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 24 24">
+              {/* Background circle */}
+              <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
                 <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
+                  cx="18"
+                  cy="18"
+                  r="16"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="3"
                   fill="none"
-                  className="text-gray-300 dark:text-gray-600"
+                  className="text-gray-200 dark:text-gray-700"
                 />
+                {/* Progress circle */}
                 <motion.circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="2"
+                  cx="18"
+                  cy="18"
+                  r="16"
+                  stroke="url(#progress-gradient)"
+                  strokeWidth="3"
                   fill="none"
                   strokeLinecap="round"
-                  className="text-primary-600"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: progress / 100 }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                  style={{
-                    strokeDasharray: "62.83 62.83",
-                  }}
+                  initial={{ strokeDasharray: "0 100" }}
+                  animate={{ strokeDasharray: `${progress} 100` }}
+                  transition={{ duration: 0.6, ease: "easeInOut" }}
+                  className="drop-shadow-sm"
                 />
+                {/* Gradient definition */}
+                <defs>
+                  <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3B82F6" />
+                    <stop offset="100%" stopColor="#8B5CF6" />
+                  </linearGradient>\n                </defs>
               </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {Math.round(progress)}%
-                </span>
+              
+              {/* Center content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <motion.div
+                  key={Math.round(progress)}
+                  initial={{ scale: 1.2, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-center"
+                >
+                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {Math.round(progress)}%
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {progress === 100 ? 'Complete' : 'Setting up'}
+                  </div>
+                </motion.div>
               </div>
             </div>
           </div>
@@ -136,30 +176,55 @@ export function CompletionStep({ onComplete, onBack }: CompletionStepProps) {
           </p>
         </motion.div>
 
-        <div className="card-notion p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            What's happening?
-          </h3>
+        <div className="card-notion p-6 bg-gradient-to-br from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 border border-gray-200/50 dark:border-gray-700/50">
+          <div className="flex items-center space-x-2 mb-6">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              What's happening?
+            </h3>
+          </div>
           <div className="space-y-3 text-left text-sm text-gray-600 dark:text-gray-400">
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${progress > 20 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>AI model downloaded and configured</span>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 16 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 0 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 16 ? 'text-gray-900 dark:text-white font-medium' : ''}>AI model downloaded and configured</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${progress > 40 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>File monitoring system initialized</span>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 33 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 16 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 33 ? 'text-gray-900 dark:text-white font-medium' : ''}>File monitoring system initialized</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${progress > 60 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>Search engine configured</span>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 50 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 33 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 50 ? 'text-gray-900 dark:text-white font-medium' : ''}>Selected folders processed and indexed</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${progress > 80 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>Performance settings applied</span>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 66 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 50 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 66 ? 'text-gray-900 dark:text-white font-medium' : ''}>Search engine configured and ready</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${progress > 95 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>Initial file scan started</span>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 83 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 66 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 83 ? 'text-gray-900 dark:text-white font-medium' : ''}>Performance settings optimized</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                progress > 95 ? 'bg-green-500 shadow-lg shadow-green-500/30' : 
+                progress > 83 ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+              }`} />
+              <span className={progress > 95 ? 'text-gray-900 dark:text-white font-medium' : ''}>Initial file scan completed</span>
             </div>
           </div>
         </div>

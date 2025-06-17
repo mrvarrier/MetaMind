@@ -91,7 +91,13 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       };
 
       // Try file processing service first (uses files from onboarding)
-      const processedFiles = fileProcessingService.searchFiles(query);
+      let processedFiles;
+      if (query.trim()) {
+        processedFiles = fileProcessingService.searchFiles(query);
+      } else {
+        // If no query, show all processed files
+        processedFiles = fileProcessingService.getProcessedFiles();
+      }
       
       if (processedFiles.length > 0) {
         // Convert processed files to search results

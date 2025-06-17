@@ -83,18 +83,9 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
     return fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const folderPaths = selectedPaths.map(item => item.path);
     updateOnboardingState({ selectedFolders: folderPaths });
-    
-    // Initialize file processing with selected paths
-    try {
-      await fileProcessingService.initializeFromOnboarding(folderPaths);
-      console.log('File processing initialized for paths:', folderPaths);
-    } catch (error) {
-      console.error('Failed to initialize file processing:', error);
-    }
-    
     onNext();
   };
 

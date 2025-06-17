@@ -28,6 +28,11 @@ export function SearchInterface() {
     setSearchInput(query);
   }, [query]);
 
+  // Load processed files on mount (empty search to show all files)
+  useEffect(() => {
+    search("");
+  }, []);
+
   useEffect(() => {
     if (searchInput.trim() && searchInput !== query) {
       const debounceTimer = setTimeout(() => {

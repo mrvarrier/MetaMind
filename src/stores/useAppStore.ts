@@ -25,6 +25,7 @@ interface AppState {
   setOnboardingStep: (step: OnboardingStep) => void;
   setOnboardingComplete: (complete: boolean) => void;
   updateOnboardingState: (updates: Partial<OnboardingState>) => void;
+  resetOnboarding: () => void;
   setTheme: (theme: 'light' | 'dark' | 'auto') => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
@@ -138,6 +139,17 @@ export const useAppStore = create<AppState>()(
             ...updates
           }
         }));
+      },
+
+      resetOnboarding: () => {
+        set({
+          onboardingState: {
+            currentStep: 'welcome',
+            selectedFolders: [],
+            isComplete: false,
+          },
+          isOnboardingComplete: false,
+        });
       },
 
       setTheme: (theme: 'light' | 'dark' | 'auto') => {
