@@ -12,10 +12,12 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 use crate::database::{Database, FileRecord};
+use crate::processing_queue::{ProcessingQueue, JobPriority};
 
 #[derive(Debug, Clone)]
 pub struct FileMonitor {
     database: Database,
+    processing_queue: Option<Arc<tokio::sync::Mutex<ProcessingQueue>>>,
     watched_paths: Arc<RwLock<HashSet<PathBuf>>>,
     excluded_patterns: Arc<RwLock<Vec<String>>>,
     max_file_size: u64,
@@ -40,6 +42,7 @@ impl FileMonitor {
     pub fn new(database: Database) -> Self {
         Self {
             database,
+            processing_queue: None,
             watched_paths: Arc::new(RwLock::new(HashSet::new())),
             excluded_patterns: Arc::new(RwLock::new(vec![
                 ".git".to_string(),
@@ -51,6 +54,11 @@ impl FileMonitor {
             ])),
             max_file_size: 100 * 1024 * 1024, // 100MB default
         }
+    }
+    
+    pub fn with_processing_queue(mut self, processing_queue: Arc<tokio::sync::Mutex<ProcessingQueue>>) -> Self {
+        self.processing_queue = Some(processing_queue);
+        self
     }
 
     pub async fn add_watch_path<P: AsRef<Path>>(&self, path: P) -> Result<()> {
@@ -87,9 +95,10 @@ impl FileMonitor {
         
         // Start processing events
         let database = self.database.clone();
+        let processing_queue = self.processing_queue.clone();
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
-                if let Err(e) = Self::process_file_event(&database, event).await {
+                if let Err(e) = Self::process_file_event(&database, &processing_queue, event).await {
                     tracing::error!("Failed to process file event: {}", e);
                 }
             }
@@ -177,11 +186,15 @@ impl FileMonitor {
         Ok(())
     }
 
-    async fn process_file_event(database: &Database, event: FileEvent) -> Result<()> {
+    async fn process_file_event(
+        database: &Database,
+        processing_queue: &Option<Arc<tokio::sync::Mutex<ProcessingQueue>>>,
+        event: FileEvent,
+    ) -> Result<()> {
         match event.event_type {
             FileEventType::Created | FileEventType::Modified => {
                 if event.path.is_file() {
-                    Self::process_file(database, &event.path).await?;
+                    Self::process_file_with_queue(database, processing_queue, &event.path).await?;
                 }
             }
             FileEventType::Deleted => {
@@ -193,7 +206,7 @@ impl FileMonitor {
             }
             FileEventType::Renamed { from: _, to } => {
                 if to.is_file() {
-                    Self::process_file(database, &to).await?;
+                    Self::process_file_with_queue(database, processing_queue, &to).await?;
                 }
             }
         }
@@ -201,7 +214,11 @@ impl FileMonitor {
         Ok(())
     }
 
-    async fn process_file(database: &Database, path: &Path) -> Result<()> {
+    async fn process_file_with_queue(
+        database: &Database,
+        processing_queue: &Option<Arc<tokio::sync::Mutex<ProcessingQueue>>>,
+        path: &Path,
+    ) -> Result<()> {
         // Get file metadata
         let metadata = tokio::fs::metadata(path).await?;
         
@@ -256,6 +273,16 @@ impl FileMonitor {
         // Insert or update file record
         database.insert_file(&file_record).await?;
         
+        // Add to processing queue if available
+        if let Some(queue) = processing_queue {
+            let queue_guard = queue.lock().await;
+            if let Err(e) = queue_guard.add_job(&file_record, JobPriority::Normal).await {
+                tracing::error!("Failed to add file to processing queue: {}", e);
+            } else {
+                tracing::debug!("Added file to processing queue: {}", path.display());
+            }
+        }
+        
         tracing::debug!("Processed file: {}", path.display());
         Ok(())
     }
@@ -281,7 +308,7 @@ impl FileMonitor {
 
             // Only process files
             if entry_path.is_file() {
-                if let Err(e) = Self::process_file(&self.database, entry_path).await {
+                if let Err(e) = Self::process_file_with_queue(&self.database, &self.processing_queue, entry_path).await {
                     tracing::error!("Failed to process file {}: {}", entry_path.display(), e);
                 } else {
                     processed_count += 1;

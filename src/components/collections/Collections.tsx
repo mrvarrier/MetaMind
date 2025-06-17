@@ -122,6 +122,8 @@ export function Collections() {
 
   const addNewLocation = async () => {
     try {
+      setError(null);
+      
       if (isTauriApp()) {
         const selected = await open({
           directory: true,
@@ -133,18 +135,52 @@ export function Collections() {
           const paths = Array.isArray(selected) ? selected : [selected];
           const newFolders = paths.map(path => ({ path, type: 'folder' as const }));
           
-          // Update app store
+          // Update app store first
+          const updatedFolders = [...onboardingState.selectedFolders, ...newFolders];
           updateOnboardingState({
-            selectedFolders: [...onboardingState.selectedFolders, ...newFolders]
+            selectedFolders: updatedFolders
           });
           
-          // Start monitoring
+          // Immediately update UI with new locations (optimistic update)
+          const newLocations = newFolders.map((folder, index) => {
+            const pathParts = folder.path.split('/');
+            const name = pathParts[pathParts.length - 1] || folder.path;
+            return {
+              id: `location-new-${Date.now()}-${index}`,
+              path: folder.path,
+              type: folder.type,
+              name,
+              addedAt: new Date().toISOString(),
+              status: 'active' as const,
+              filesCount: 0,
+              processedCount: 0,
+              pendingCount: 0,
+              errorCount: 0,
+              lastScan: new Date().toISOString(),
+            };
+          });
+          
+          setMonitoredLocations(prev => [...prev, ...newLocations]);
+          
+          // Start monitoring in background
           for (const folder of newFolders) {
-            await safeInvoke('start_file_monitoring', { paths: [folder.path] });
+            try {
+              await safeInvoke('start_file_monitoring', { paths: [folder.path] });
+              console.log('Started monitoring:', folder.path);
+              
+              // Trigger initial scan
+              await safeInvoke('scan_directory', { path: folder.path });
+              console.log('Initial scan completed for:', folder.path);
+            } catch (monitorError) {
+              console.error('Failed to start monitoring:', monitorError);
+              setError(`Failed to start monitoring ${folder.path}`);
+            }
           }
           
-          // Reload locations
-          loadMonitoredLocations();
+          // Reload to get real statistics after a short delay
+          setTimeout(() => {
+            loadMonitoredLocations();
+          }, 3000);
         }
       } else {
         // Web mode - simulate adding a folder
@@ -153,11 +189,29 @@ export function Collections() {
           type: 'folder' as const
         };
         
+        const updatedFolders = [...onboardingState.selectedFolders, mockFolder];
         updateOnboardingState({
-          selectedFolders: [...onboardingState.selectedFolders, mockFolder]
+          selectedFolders: updatedFolders
         });
         
-        loadMonitoredLocations();
+        // Immediately show the new location
+        const pathParts = mockFolder.path.split('/');
+        const name = pathParts[pathParts.length - 1] || mockFolder.path;
+        const newLocation = {
+          id: `location-new-${Date.now()}`,
+          path: mockFolder.path,
+          type: mockFolder.type,
+          name,
+          addedAt: new Date().toISOString(),
+          status: 'active' as const,
+          filesCount: Math.floor(Math.random() * 30) + 5,
+          processedCount: 0,
+          pendingCount: Math.floor(Math.random() * 10),
+          errorCount: 0,
+          lastScan: new Date().toISOString(),
+        };
+        
+        setMonitoredLocations(prev => [...prev, newLocation]);
       }
     } catch (error) {
       console.error('Error adding location:', error);

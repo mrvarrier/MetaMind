@@ -497,25 +497,30 @@ async fn main() {
         .await
         .expect("Failed to initialize database");
 
-    // Initialize file monitor
-    let file_monitor = FileMonitor::new(database.clone());
-
     // Initialize processing queue (without AI processor for initial version)
     let processing_queue = ProcessingQueue::new(
         database.clone(),
         4, // max concurrent jobs
     );
+    let processing_queue = Arc::new(tokio::sync::Mutex::new(processing_queue));
+
+    // Initialize file monitor with processing queue
+    let file_monitor = FileMonitor::new(database.clone())
+        .with_processing_queue(processing_queue.clone());
 
     // Start the processing queue
-    if let Err(e) = processing_queue.start_processing().await {
-        tracing::error!("Failed to start processing queue: {}", e);
+    {
+        let queue_guard = processing_queue.lock().await;
+        if let Err(e) = queue_guard.start_processing().await {
+            tracing::error!("Failed to start processing queue: {}", e);
+        }
     }
 
     let app_state = AppState {
         config: Arc::new(RwLock::new(AppConfig::default())),
         database,
         file_monitor,
-        processing_queue: Arc::new(Mutex::new(processing_queue)),
+        processing_queue,
     };
 
     tauri::Builder::default()
