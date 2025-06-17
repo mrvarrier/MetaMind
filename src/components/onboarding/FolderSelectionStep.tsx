@@ -84,8 +84,7 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
   };
 
   const handleNext = () => {
-    const folderPaths = selectedPaths.map(item => item.path);
-    updateOnboardingState({ selectedFolders: folderPaths });
+    updateOnboardingState({ selectedFolders: selectedPaths });
     onNext();
   };
 

@@ -36,15 +36,32 @@ export function Collections() {
       setIsLoading(true);
       setError(null);
       
+      console.log('Loading monitored locations...');
+      console.log('Onboarding state:', onboardingState);
+      console.log('Selected folders:', onboardingState.selectedFolders);
+      
+      // Check if selectedFolders exists and is an array
+      if (!onboardingState.selectedFolders || !Array.isArray(onboardingState.selectedFolders)) {
+        console.log('No selected folders or not an array, showing empty state');
+        setMonitoredLocations([]);
+        return;
+      }
+      
       // Convert onboarding selected folders to monitored locations
       const locations: MonitoredLocation[] = onboardingState.selectedFolders.map((folder, index) => {
-        const pathParts = folder.path.split('/');
-        const name = pathParts[pathParts.length - 1] || folder.path;
+        console.log('Processing folder:', folder);
+        
+        // Handle both string paths (legacy) and objects with path/type
+        const folderPath = typeof folder === 'string' ? folder : folder.path;
+        const folderType = typeof folder === 'string' ? 'folder' : folder.type;
+        
+        const pathParts = folderPath.split('/');
+        const name = pathParts[pathParts.length - 1] || folderPath;
         
         return {
           id: `location-${index}`,
-          path: folder.path,
-          type: folder.type,
+          path: folderPath,
+          type: folderType,
           name,
           addedAt: new Date().toISOString(),
           status: 'active' as const,
@@ -56,10 +73,12 @@ export function Collections() {
         };
       });
       
+      console.log('Created locations:', locations);
       setMonitoredLocations(locations);
     } catch (error) {
       console.error('Failed to load monitored locations:', error);
-      setError('Failed to load monitored locations');
+      console.error('Error details:', error);
+      setError(`Failed to load monitored locations: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }

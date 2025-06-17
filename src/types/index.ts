@@ -210,7 +210,7 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   systemAnalysis?: SystemAnalysis;
   selectedModel?: string;
-  selectedFolders: string[];
+  selectedFolders: { path: string; type: 'folder' | 'file' }[];
   performanceSettings?: PerformanceConfig;
   isComplete: boolean;
 }
