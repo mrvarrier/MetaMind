@@ -598,6 +598,32 @@ async fn get_location_stats(
     }
 }
 
+#[tauri::command]
+async fn get_file_errors(
+    path: String,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    tracing::debug!("Getting error details for file: {}", path);
+    
+    match state.database.get_file_by_path(&path).await {
+        Ok(Some(file)) => {
+            Ok(serde_json::json!({
+                "path": file.path,
+                "status": file.processing_status,
+                "error_message": file.error_message,
+                "last_attempt": file.modified_at
+            }))
+        }
+        Ok(None) => {
+            Err("File not found in database".to_string())
+        }
+        Err(e) => {
+            tracing::error!("Failed to get file error details: {}", e);
+            Err(format!("Failed to get file error details: {}", e))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -667,7 +693,8 @@ async fn main() {
             add_file_to_collection,
             remove_file_from_collection,
             get_files_in_collection,
-            get_location_stats
+            get_location_stats,
+            get_file_errors
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");

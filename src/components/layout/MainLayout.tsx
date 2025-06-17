@@ -6,6 +6,7 @@ import { Collections } from "../collections/Collections";
 import { Insights } from "../insights/Insights";
 import { Settings } from "../settings/Settings";
 import { useAppStore } from "../../stores/useAppStore";
+import { safeInvoke, isTauriApp } from "../../utils/tauri";
 
 export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -43,9 +44,24 @@ export function MainLayout() {
           {/* Development Reset Button */}
           <div className="absolute right-4">
             <button
-              onClick={() => {
-                resetOnboarding();
-                window.location.reload();
+              onClick={async () => {
+                if (confirm('Reset everything? This will clear all data and restart the app.')) {
+                  try {
+                    // Reset database first
+                    if (isTauriApp()) {
+                      await safeInvoke('reset_database');
+                    }
+                    // Reset onboarding state
+                    resetOnboarding();
+                    // Reload the app
+                    window.location.reload();
+                  } catch (error) {
+                    console.error('Failed to reset database:', error);
+                    alert('Failed to reset database, but onboarding will be reset anyway');
+                    resetOnboarding();
+                    window.location.reload();
+                  }
+                }
               }}
               className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
               title="Reset onboarding (dev only)"
