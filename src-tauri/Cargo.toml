@@ -43,11 +43,12 @@ lopdf = "0.32"
 image = "0.24"
 kamadak-exif = "0.5"
 
-# Text processing and embeddings
-tokenizers = "0.15"
-candle-core = "0.6"
-candle-nn = "0.6"
-candle-transformers = "0.6"
+# Text processing (simplified for initial version)
+# Note: Advanced AI features can be added later
+# tokenizers = "0.15"
+# candle-core = "0.6" 
+# candle-nn = "0.6"
+# candle-transformers = "0.6"
 
 # Search
 tantivy = "0.22"

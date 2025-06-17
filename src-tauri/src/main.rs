@@ -10,12 +10,12 @@ use sysinfo::{System, SystemExt, CpuExt, DiskExt};
 mod database;
 mod file_monitor;
 mod content_extractor;
-mod ai_processor;
+// mod ai_processor; // Temporarily disabled for initial compilation
 mod processing_queue;
 
 use database::Database;
 use file_monitor::FileMonitor;
-use ai_processor::AIProcessor;
+// use ai_processor::AIProcessor; // Temporarily disabled
 use processing_queue::{ProcessingQueue, JobPriority};
 
 #[derive(Debug)]
@@ -307,19 +307,12 @@ async fn main() {
         .await
         .expect("Failed to initialize database");
 
-    // Initialize AI processor
-    let ai_processor = AIProcessor::new(
-        "http://localhost:11434".to_string(),
-        "llama3.1:8b".to_string(),
-    );
-
     // Initialize file monitor
     let file_monitor = FileMonitor::new(database.clone());
 
-    // Initialize processing queue
+    // Initialize processing queue (without AI processor for initial version)
     let processing_queue = ProcessingQueue::new(
         database.clone(),
-        ai_processor,
         4, // max concurrent jobs
     );
 

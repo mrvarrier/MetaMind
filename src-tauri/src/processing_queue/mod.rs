@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::database::{Database, FileRecord};
 use crate::content_extractor::ContentExtractor;
-use crate::ai_processor::AIProcessor;
+// use crate::ai_processor::AIProcessor; // Temporarily disabled
 
 #[derive(Debug, Clone)]
 pub struct ProcessingJob {
@@ -29,7 +29,7 @@ pub enum JobPriority {
 
 pub struct ProcessingQueue {
     database: Database,
-    ai_processor: AIProcessor,
+    // ai_processor: AIProcessor, // Temporarily disabled
     queue: Arc<RwLock<VecDeque<ProcessingJob>>>,
     processing_semaphore: Arc<Semaphore>,
     max_concurrent_jobs: usize,
@@ -39,12 +39,11 @@ pub struct ProcessingQueue {
 impl ProcessingQueue {
     pub fn new(
         database: Database,
-        ai_processor: AIProcessor,
         max_concurrent_jobs: usize,
     ) -> Self {
         Self {
             database,
-            ai_processor,
+            // ai_processor, // Temporarily disabled
             queue: Arc::new(RwLock::new(VecDeque::new())),
             processing_semaphore: Arc::new(Semaphore::new(max_concurrent_jobs)),
             max_concurrent_jobs,
@@ -56,7 +55,7 @@ impl ProcessingQueue {
         // Start the main processing loop
         let queue = self.queue.clone();
         let database = self.database.clone();
-        let ai_processor = self.ai_processor.clone();
+        // let ai_processor = self.ai_processor.clone(); // Temporarily disabled
         let semaphore = self.processing_semaphore.clone();
         let max_retries = self.max_retries;
 
@@ -76,13 +75,13 @@ impl ProcessingQueue {
                     // Try to acquire semaphore for concurrent processing
                     if let Ok(permit) = semaphore.try_acquire() {
                         let db = database.clone();
-                        let ai = ai_processor.clone();
+                        // let ai = ai_processor.clone(); // Temporarily disabled
                         let queue_for_retry = queue.clone();
                         
                         tokio::spawn(async move {
                             let _permit = permit; // Keep permit alive
                             
-                            if let Err(e) = Self::process_job(&db, &ai, &job).await {
+                            if let Err(e) = Self::process_job(&db, &job).await {
                                 tracing::error!("Job {} failed: {}", job.id, e);
                                 
                                 // Retry logic
@@ -122,7 +121,6 @@ impl ProcessingQueue {
 
     async fn process_job(
         database: &Database,
-        ai_processor: &AIProcessor,
         job: &ProcessingJob,
     ) -> Result<()> {
         tracing::debug!("Processing job {} for file {}", job.id, job.file_path);
@@ -135,17 +133,22 @@ impl ProcessingQueue {
         // Extract content from file
         let extracted_content = ContentExtractor::extract_content(&job.file_path).await?;
         
-        // Analyze content with AI
-        let ai_analysis = ai_processor.analyze_content(&extracted_content).await?;
+        // Simple analysis without AI (for initial version)
+        let simple_summary = if extracted_content.text.len() > 200 {
+            format!("{}...", &extracted_content.text[..200])
+        } else {
+            extracted_content.text.clone()
+        };
         
-        // Update database with results
-        let tags_json = serde_json::to_string(&ai_analysis.tags)?;
+        let basic_tags = vec![extracted_content.file_type.clone()];
+        let tags_json = serde_json::to_string(&basic_tags)?;
         
+        // Update database with basic results
         database.update_file_analysis(
             &job.file_id,
-            &ai_analysis.summary,
+            &simple_summary,
             Some(&tags_json),
-            ai_analysis.embedding.as_deref(),
+            None, // No embeddings for now
         ).await?;
         
         let processing_time = start_time.elapsed();
@@ -270,7 +273,7 @@ impl ProcessingQueue {
         Ok(serde_json::json!({
             "queue": queue_status,
             "database": db_stats,
-            "ai_available": self.ai_processor.is_available().await
+            "ai_available": false // Temporarily disabled
         }))
     }
 }
