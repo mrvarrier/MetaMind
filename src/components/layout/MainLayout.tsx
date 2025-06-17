@@ -51,15 +51,20 @@ export function MainLayout() {
                     if (isTauriApp()) {
                       await safeInvoke('reset_database');
                     }
+                    // Clear all localStorage
+                    localStorage.clear();
+                    sessionStorage.clear();
                     // Reset onboarding state
                     resetOnboarding();
-                    // Reload the app
-                    window.location.reload();
+                    // Force reload the app
+                    window.location.href = window.location.origin;
                   } catch (error) {
                     console.error('Failed to reset database:', error);
                     alert('Failed to reset database, but onboarding will be reset anyway');
+                    localStorage.clear();
+                    sessionStorage.clear();
                     resetOnboarding();
-                    window.location.reload();
+                    window.location.href = window.location.origin;
                   }
                 }
               }}
