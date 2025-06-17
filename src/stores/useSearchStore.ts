@@ -93,10 +93,11 @@ export const useSearchStore = create<SearchState>((set, get) => ({
       // Try file processing service first (uses files from onboarding)
       let processedFiles;
       if (query.trim()) {
-        processedFiles = fileProcessingService.searchFiles(query);
+        // Use backend search if available, fallback to local search
+        processedFiles = await fileProcessingService.searchFilesFromBackend(query);
       } else {
-        // If no query, show all processed files
-        processedFiles = fileProcessingService.getProcessedFiles();
+        // If no query, show all processed files from backend
+        processedFiles = await fileProcessingService.getProcessedFilesFromBackend();
       }
       
       if (processedFiles.length > 0) {

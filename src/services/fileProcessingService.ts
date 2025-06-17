@@ -55,14 +55,18 @@ class FileProcessingService {
   private async initializeTauriProcessing(selectedPaths: string[]): Promise<void> {
     try {
       // Start file monitoring on selected paths
-      await safeInvoke('start_file_monitoring', { paths: selectedPaths });
+      await safeInvoke('start_file_monitoring', selectedPaths);
       
-      // Get initial file list
+      // Scan each directory initially
       for (const path of selectedPaths) {
-        await safeInvoke('scan_directory', { path });
+        await safeInvoke('scan_directory', path);
       }
       
       console.log('Started Tauri file monitoring for paths:', selectedPaths);
+      
+      // Start polling for real processing updates
+      this.startTauriStatusPolling();
+      
     } catch (error) {
       console.error('Failed to initialize Tauri file processing:', error);
     }
@@ -279,6 +283,101 @@ class FileProcessingService {
     });
 
     return stats;
+  }
+
+  // Start polling Tauri backend for real status updates
+  private startTauriStatusPolling(): void {
+    if (!isTauriApp()) return;
+
+    setInterval(async () => {
+      try {
+        const status = await safeInvoke('get_processing_status');
+        if (status && status.database) {
+          // Update our internal state with real backend data
+          console.log('Processing status update:', status);
+          this.notifyListeners();
+        }
+      } catch (error) {
+        console.warn('Failed to get processing status:', error);
+      }
+    }, 5000); // Poll every 5 seconds
+  }
+
+  // Get real search results from backend
+  async searchFilesFromBackend(query: string): Promise<ProcessedFile[]> {
+    if (!isTauriApp()) {
+      return this.searchFiles(query);
+    }
+
+    try {
+      const response = await safeInvoke('search_files', query, null);
+      
+      if (response && response.results) {
+        // Convert backend results to ProcessedFile format
+        const backendFiles: ProcessedFile[] = response.results.map((result: any) => ({
+          id: result.file.id,
+          path: result.file.path,
+          name: result.file.name,
+          extension: result.file.extension,
+          size: result.file.size,
+          created_at: result.file.created_at,
+          modified_at: result.file.modified_at,
+          mime_type: result.file.mime_type,
+          content: result.snippet || '',
+          processing_status: result.file.processing_status,
+          ai_analysis: result.snippet,
+          tags: result.highlights || [],
+          category: this.getCategory(result.file.extension || ''),
+          relevanceScore: result.score || 0.5,
+        }));
+
+        return backendFiles;
+      }
+    } catch (error) {
+      console.error('Backend search failed:', error);
+    }
+
+    // Fallback to mock data
+    return this.searchFiles(query);
+  }
+
+  // Get all processed files from backend
+  async getProcessedFilesFromBackend(): Promise<ProcessedFile[]> {
+    if (!isTauriApp()) {
+      return this.getProcessedFiles();
+    }
+
+    try {
+      // Use empty search to get all files
+      const response = await safeInvoke('search_files', '', null);
+      
+      if (response && response.results) {
+        const backendFiles: ProcessedFile[] = response.results.map((result: any) => ({
+          id: result.file.id,
+          path: result.file.path,
+          name: result.file.name,
+          extension: result.file.extension,
+          size: result.file.size,
+          created_at: result.file.created_at,
+          modified_at: result.file.modified_at,
+          mime_type: result.file.mime_type,
+          content: result.snippet || '',
+          processing_status: result.file.processing_status,
+          ai_analysis: result.snippet,
+          tags: result.highlights || [],
+          category: this.getCategory(result.file.extension || ''),
+        }));
+
+        // Update our local cache
+        this.processedFiles = backendFiles;
+        return backendFiles;
+      }
+    } catch (error) {
+      console.error('Failed to get files from backend:', error);
+    }
+
+    // Fallback to mock data
+    return this.getProcessedFiles();
   }
 }
 
