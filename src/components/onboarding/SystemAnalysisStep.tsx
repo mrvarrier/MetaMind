@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { invoke } from "@tauri-apps/api/tauri";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { useSystemStore } from "../../stores/useSystemStore";
 import { SystemAnalysis } from "../../types";
+import { isTauriApp } from "../../utils/tauri";
+import { detectBrowserSystemInfo, formatSystemInfoForDisplay, BrowserSystemInfo } from "../../utils/browserDetection";
 
 interface SystemAnalysisStepProps {
   onNext: () => void;
@@ -19,6 +20,7 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   const { onboardingState, updateOnboardingState } = useAppStore();
   const { systemInfo, getSystemCapabilities } = useSystemStore();
   const [analysis, setAnalysis] = useState<SystemAnalysis | null>(null);
+  const [browserSystemInfo, setBrowserSystemInfo] = useState<BrowserSystemInfo | null>(null);
 
   useEffect(() => {
     // Check if analysis already exists from previous visit
@@ -37,14 +39,18 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
     try {
       // Simulate analysis steps with progress
       const steps = [
-        { name: "Detecting hardware...", duration: 1000 },
-        { name: "Analyzing CPU capabilities...", duration: 800 },
-        { name: "Checking memory configuration...", duration: 600 },
-        { name: "Testing GPU acceleration...", duration: 1200 },
-        { name: "Evaluating performance profile...", duration: 800 },
+        { name: "Detecting hardware...", duration: 800 },
+        { name: "Analyzing CPU capabilities...", duration: 600 },
+        { name: "Checking memory configuration...", duration: 500 },
+        { name: "Testing GPU acceleration...", duration: 700 },
+        { name: "Evaluating performance profile...", duration: 600 },
       ];
 
       let currentProgress = 0;
+      
+      // Start browser detection in parallel with progress animation
+      const browserDetectionPromise = detectBrowserSystemInfo();
+      
       for (const [index, step] of steps.entries()) {
         await new Promise(resolve => setTimeout(resolve, step.duration));
         currentProgress = ((index + 1) / steps.length) * 100;
@@ -52,8 +58,29 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
       }
 
       // Get actual system capabilities
-      const capabilities = await getSystemCapabilities();
+      let capabilities: SystemAnalysis;
+      let browserInfo: BrowserSystemInfo;
+      
+      if (isTauriApp()) {
+        // Use Tauri backend for native app
+        capabilities = await getSystemCapabilities();
+        browserInfo = await browserDetectionPromise; // Still get browser info for additional details
+      } else {
+        // Use browser detection for web mode
+        browserInfo = await browserDetectionPromise;
+        capabilities = {
+          cpu_cores: browserInfo.cpu_cores,
+          total_memory_gb: browserInfo.total_memory_gb || 0,
+          architecture: browserInfo.architecture,
+          os: browserInfo.os,
+          gpu_acceleration: browserInfo.gpu_acceleration,
+          recommended_max_threads: browserInfo.recommended_max_threads,
+          supports_background_processing: browserInfo.supports_background_processing,
+        };
+      }
+      
       setAnalysis(capabilities);
+      setBrowserSystemInfo(browserInfo);
       
       // Store in onboarding state
       updateOnboardingState({ systemAnalysis: capabilities });
@@ -61,17 +88,41 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
       setAnalysisComplete(true);
     } catch (error) {
       console.error('System analysis failed:', error);
-      // Get minimal real data from browser
-      const browserAnalysis: SystemAnalysis = {
-        cpu_cores: navigator.hardwareConcurrency || 0,
-        total_memory_gb: 0, // Will show "Unknown" in UI
-        architecture: 'browser',
-        os: navigator.platform || 'unknown',
-        gpu_acceleration: false,
-        recommended_max_threads: navigator.hardwareConcurrency || 0,
-        supports_background_processing: true,
-      };
-      setAnalysis(browserAnalysis);
+      
+      // Fallback: try to get basic browser info
+      try {
+        const browserInfo = await detectBrowserSystemInfo();
+        const fallbackAnalysis: SystemAnalysis = {
+          cpu_cores: browserInfo.cpu_cores,
+          total_memory_gb: browserInfo.total_memory_gb || 0,
+          architecture: browserInfo.architecture,
+          os: browserInfo.os,
+          gpu_acceleration: browserInfo.gpu_acceleration,
+          recommended_max_threads: browserInfo.recommended_max_threads,
+          supports_background_processing: browserInfo.supports_background_processing,
+        };
+        
+        setAnalysis(fallbackAnalysis);
+        setBrowserSystemInfo(browserInfo);
+        updateOnboardingState({ systemAnalysis: fallbackAnalysis });
+      } catch (fallbackError) {
+        console.error('Fallback detection also failed:', fallbackError);
+        
+        // Ultimate fallback with minimal detection
+        const minimalAnalysis: SystemAnalysis = {
+          cpu_cores: navigator.hardwareConcurrency || 4,
+          total_memory_gb: 0,
+          architecture: 'Unknown',
+          os: navigator.platform || 'Unknown',
+          gpu_acceleration: false,
+          recommended_max_threads: (navigator.hardwareConcurrency || 4) - 1,
+          supports_background_processing: 'serviceWorker' in navigator,
+        };
+        
+        setAnalysis(minimalAnalysis);
+        updateOnboardingState({ systemAnalysis: minimalAnalysis });
+      }
+      
       setAnalysisComplete(true);
     } finally {
       setIsAnalyzing(false);
@@ -79,16 +130,33 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   };
 
   const formatMemory = (gb: number) => {
-    if (gb === 0) return "Unknown";
+    if (gb === 0 || gb === null) {
+      return isTauriApp() ? "Unknown" : "Not detectable in browser";
+    }
     if (gb >= 1024) {
       return `${(gb / 1024).toFixed(1)} TB`;
     }
-    return `${gb} GB`;
+    if (gb >= 1) {
+      return `${gb} GB`;
+    }
+    return `${(gb * 1024).toFixed(0)} MB`;
   };
 
   const getPerformanceRating = () => {
     if (!analysis) return "Unknown";
     
+    // Use browser system info if available for better accuracy
+    if (browserSystemInfo && !isTauriApp()) {
+      const tier = browserSystemInfo.estimated_performance_tier;
+      switch (tier) {
+        case 'high': return "Excellent";
+        case 'medium': return "Good";
+        case 'low': return "Fair";
+        default: return "Good";
+      }
+    }
+    
+    // Fallback to analysis-based scoring
     const { cpu_cores, total_memory_gb, gpu_acceleration } = analysis;
     
     let score = 0;
@@ -96,9 +164,15 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
     else if (cpu_cores >= 4) score += 2;
     else score += 1;
     
-    if (total_memory_gb >= 32) score += 3;
-    else if (total_memory_gb >= 16) score += 2;
-    else if (total_memory_gb >= 8) score += 1;
+    // Handle unknown memory in browser mode
+    if (total_memory_gb > 0) {
+      if (total_memory_gb >= 32) score += 3;
+      else if (total_memory_gb >= 16) score += 2;
+      else if (total_memory_gb >= 8) score += 1;
+    } else if (!isTauriApp()) {
+      // In browser mode, assume decent memory for modern systems
+      score += 2;
+    }
     
     if (gpu_acceleration) score += 2;
     
@@ -240,15 +314,43 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
                 </p>
               </div>
               <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Operating System</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {analysis.os}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Architecture</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {analysis.architecture}
                 </p>
               </div>
+              {browserSystemInfo && (
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Browser</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {browserSystemInfo.browser}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">GPU Acceleration</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-white">
                   {analysis.gpu_acceleration ? "Available" : "Not Available"}
+                </p>
+              </div>
+              {browserSystemInfo && (
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Performance Tier</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
+                    {browserSystemInfo.estimated_performance_tier}
+                  </p>
+                </div>
+              )}
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Background Processing</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {analysis.supports_background_processing ? "Supported" : "Not Supported"}
                 </p>
               </div>
             </div>

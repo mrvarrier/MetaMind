@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/tauri";
 import { motion, AnimatePresence } from "framer-motion";
 import { Onboarding } from "./components/onboarding/Onboarding";
 import { MainLayout } from "./components/layout/MainLayout";
 import { useAppStore } from "./stores/useAppStore";
 import { useSystemStore } from "./stores/useSystemStore";
+import { useSearchStore } from "./stores/useSearchStore";
 import { LoadingScreen } from "./components/common/LoadingScreen";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
@@ -22,6 +22,8 @@ function App() {
     initializeSystemMonitoring, 
     systemInfo 
   } = useSystemStore();
+  
+  const { init: initializeSearch } = useSearchStore();
 
   useEffect(() => {
     const initialize = async () => {
@@ -34,9 +36,8 @@ function App() {
         // Initialize system monitoring
         await initializeSystemMonitoring();
         
-        // Get initial system info
-        const sysInfo = await invoke('get_system_info');
-        console.log('System info:', sysInfo);
+        // Initialize search store
+        initializeSearch();
         
         setIsLoading(false);
       } catch (err) {
@@ -47,7 +48,7 @@ function App() {
     };
 
     initialize();
-  }, [initializeApp, initializeSystemMonitoring]);
+  }, [initializeApp, initializeSystemMonitoring, initializeSearch]);
 
   if (isLoading) {
     return <LoadingScreen message="Initializing MetaMind..." />;

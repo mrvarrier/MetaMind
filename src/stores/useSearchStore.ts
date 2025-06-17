@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import { SearchResult, SearchQuery, SearchFilters, ViewMode, SortOption, SortDirection } from '../types';
+import { fileProcessingService, ProcessedFile } from '../services/fileProcessingService';
+import { isTauriApp } from '../utils/tauri';
 
 interface SearchState {
   // Search state
@@ -25,6 +27,7 @@ interface SearchState {
   selectedResults: string[];
   
   // Actions
+  init: () => void;
   search: (query: string, filters?: SearchFilters) => Promise<void>;
   clearSearch: () => void;
   setQuery: (query: string) => void;
@@ -56,6 +59,18 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   resultsPerPage: 20,
   selectedResults: [],
 
+  // Initialize the store
+  init: () => {
+    // Subscribe to file processing updates
+    fileProcessingService.subscribe((files) => {
+      const { query } = get();
+      if (query.trim()) {
+        // Re-run search with updated files
+        get().search(query);
+      }
+    });
+  },
+
   // Actions
   search: async (query: string, filters?: SearchFilters) => {
     try {
@@ -75,27 +90,42 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         execution_time_ms: number;
       };
 
-      try {
-        response = await invoke<{
-          results: SearchResult[];
-          total: number;
-          query: string;
-          execution_time_ms: number;
-        }>('search_files', { 
-          query: searchQuery.text, 
-          filters: searchQuery.filters 
-        });
-      } catch (backendError) {
-        console.warn('Backend search not available, using mock data:', backendError);
-        
-        // Generate mock search results
-        const mockResults = get().generateMockResults(query);
+      // Try file processing service first (uses files from onboarding)
+      const processedFiles = fileProcessingService.searchFiles(query);
+      
+      if (processedFiles.length > 0) {
+        // Convert processed files to search results
+        const searchResults = get().convertProcessedFilesToSearchResults(processedFiles, query);
         response = {
-          results: mockResults,
-          total: mockResults.length,
+          results: searchResults,
+          total: searchResults.length,
           query: query,
-          execution_time_ms: 45
+          execution_time_ms: 25
         };
+      } else {
+        // Try backend if no processed files found
+        try {
+          response = await invoke<{
+            results: SearchResult[];
+            total: number;
+            query: string;
+            execution_time_ms: number;
+          }>('search_files', { 
+            query: searchQuery.text, 
+            filters: searchQuery.filters 
+          });
+        } catch (backendError) {
+          console.warn('Backend search not available, using mock data:', backendError);
+          
+          // Generate mock search results as final fallback
+          const mockResults = get().generateMockResults(query);
+          response = {
+            results: mockResults,
+            total: mockResults.length,
+            query: query,
+            execution_time_ms: 45
+          };
+        }
       }
 
       // Apply client-side sorting
@@ -272,6 +302,26 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         get().search(query, filters);
       }
     }
+  },
+
+  // Convert processed files to search results
+  convertProcessedFilesToSearchResults: (processedFiles: ProcessedFile[], query: string): SearchResult[] => {
+    return processedFiles.map(file => ({
+      file: {
+        id: file.id,
+        path: file.path,
+        name: file.name,
+        extension: file.extension,
+        size: file.size,
+        created_at: file.created_at,
+        modified_at: file.modified_at,
+        mime_type: file.mime_type,
+        processing_status: file.processing_status as any
+      },
+      score: (file as any).relevanceScore || 0.85,
+      snippet: file.content ? file.content.substring(0, 200) + '...' : `Content from ${file.name}`,
+      highlights: [query, ...(file.tags || [])]
+    }));
   },
 
   // Mock data generators (for development when backend is not available)

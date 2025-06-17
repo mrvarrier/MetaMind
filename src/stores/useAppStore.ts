@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/tauri';
 import { AppConfig, OnboardingState, OnboardingStep } from '../types';
+import { safeInvoke, isTauriApp, mockData } from '../utils/tauri';
 
 interface AppState {
   // Config
@@ -51,8 +51,16 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null });
           
-          // Load config from backend
-          const config = await invoke<AppConfig>('get_config');
+          let config: AppConfig;
+          
+          if (isTauriApp()) {
+            // Load config from Tauri backend
+            config = await safeInvoke<AppConfig>('get_config') || mockData.appConfig;
+          } else {
+            // Use mock config for web development
+            console.log('Running in web mode - using mock config');
+            config = mockData.appConfig;
+          }
           
           set({ 
             config,
@@ -61,9 +69,12 @@ export const useAppStore = create<AppState>()(
           });
         } catch (error) {
           console.error('Failed to initialize app:', error);
+          // Fallback to mock data if backend fails
           set({ 
-            error: error instanceof Error ? error.message : 'Failed to initialize app',
-            isLoading: false 
+            config: mockData.appConfig,
+            isInitialized: true,
+            isLoading: false,
+            error: null // Don't show error in development mode
           });
         }
       },
@@ -72,7 +83,11 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null });
           
-          await invoke('update_config', { configUpdate: updates });
+          if (isTauriApp()) {
+            await safeInvoke('update_config', { configUpdate: updates });
+          } else {
+            console.log('Config update in web mode:', updates);
+          }
           
           const currentConfig = get().config;
           if (currentConfig) {
@@ -83,10 +98,15 @@ export const useAppStore = create<AppState>()(
           }
         } catch (error) {
           console.error('Failed to update config:', error);
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to update config',
-            isLoading: false 
-          });
+          // In development mode, just update the local state
+          const currentConfig = get().config;
+          if (currentConfig) {
+            set({ 
+              config: { ...currentConfig, ...updates },
+              isLoading: false,
+              error: null
+            });
+          }
         }
       },
 

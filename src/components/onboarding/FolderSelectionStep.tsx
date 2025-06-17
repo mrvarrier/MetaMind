@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { open } from "@tauri-apps/api/dialog";
+import { fileProcessingService } from "../../services/fileProcessingService";
+import { isTauriApp } from "../../utils/tauri";
 
 interface FolderSelectionStepProps {
   onNext: () => void;
@@ -15,16 +17,28 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
 
   const addFolder = async () => {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: true,
-        title: "Select folders to monitor"
-      });
-      
-      if (selected) {
-        const paths = Array.isArray(selected) ? selected : [selected];
-        const newFolders = paths.map(path => ({ path, type: 'folder' as const }));
-        setSelectedPaths(prev => [...prev, ...newFolders]);
+      if (isTauriApp()) {
+        const selected = await open({
+          directory: true,
+          multiple: true,
+          title: "Select folders to monitor"
+        });
+        
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected];
+          const newFolders = paths.map(path => ({ path, type: 'folder' as const }));
+          setSelectedPaths(prev => [...prev, ...newFolders]);
+        }
+      } else {
+        // In web mode, simulate folder selection for development
+        const mockFolders = [
+          '/Users/Documents/Projects',
+          '/Users/Documents/Research',
+          '/Users/Downloads/Files'
+        ];
+        const randomFolder = mockFolders[Math.floor(Math.random() * mockFolders.length)];
+        const newFolder = { path: randomFolder, type: 'folder' as const };
+        setSelectedPaths(prev => [...prev, newFolder]);
       }
     } catch (error) {
       console.error('Error selecting folders:', error);
@@ -33,16 +47,28 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
 
   const addFiles = async () => {
     try {
-      const selected = await open({
-        directory: false,
-        multiple: true,
-        title: "Select files to monitor"
-      });
-      
-      if (selected) {
-        const paths = Array.isArray(selected) ? selected : [selected];
-        const newFiles = paths.map(path => ({ path, type: 'file' as const }));
-        setSelectedPaths(prev => [...prev, ...newFiles]);
+      if (isTauriApp()) {
+        const selected = await open({
+          directory: false,
+          multiple: true,
+          title: "Select files to monitor"
+        });
+        
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected];
+          const newFiles = paths.map(path => ({ path, type: 'file' as const }));
+          setSelectedPaths(prev => [...prev, ...newFiles]);
+        }
+      } else {
+        // In web mode, simulate file selection for development
+        const mockFiles = [
+          '/Users/Documents/report.pdf',
+          '/Users/Documents/presentation.pptx',
+          '/Users/Downloads/data.csv'
+        ];
+        const randomFile = mockFiles[Math.floor(Math.random() * mockFiles.length)];
+        const newFile = { path: randomFile, type: 'file' as const };
+        setSelectedPaths(prev => [...prev, newFile]);
       }
     } catch (error) {
       console.error('Error selecting files:', error);
@@ -57,9 +83,18 @@ export function FolderSelectionStep({ onNext, onBack }: FolderSelectionStepProps
     return fullPath.split('/').pop() || fullPath.split('\\').pop() || fullPath;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const folderPaths = selectedPaths.map(item => item.path);
     updateOnboardingState({ selectedFolders: folderPaths });
+    
+    // Initialize file processing with selected paths
+    try {
+      await fileProcessingService.initializeFromOnboarding(folderPaths);
+      console.log('File processing initialized for paths:', folderPaths);
+    } catch (error) {
+      console.error('Failed to initialize file processing:', error);
+    }
+    
     onNext();
   };
 
