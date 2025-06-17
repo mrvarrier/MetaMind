@@ -294,6 +294,191 @@ async fn scan_directory(path: String, state: State<'_, AppState>) -> Result<(), 
     }
 }
 
+// Collections commands
+#[tauri::command]
+async fn create_collection(
+    name: String,
+    description: Option<String>,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    tracing::info!("Creating collection: {}", name);
+    
+    match state.database.create_collection(&name, description.as_deref()).await {
+        Ok(collection) => {
+            tracing::info!("Collection created successfully: {}", collection.id);
+            Ok(serde_json::to_value(collection).map_err(|e| e.to_string())?)
+        }
+        Err(e) => {
+            tracing::error!("Failed to create collection: {}", e);
+            Err(format!("Failed to create collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn get_collections(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    match state.database.get_collections().await {
+        Ok(collections) => {
+            tracing::debug!("Retrieved {} collections", collections.len());
+            Ok(serde_json::to_value(collections).map_err(|e| e.to_string())?)
+        }
+        Err(e) => {
+            tracing::error!("Failed to get collections: {}", e);
+            Err(format!("Failed to get collections: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn get_collection_by_id(
+    id: String,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    match state.database.get_collection_by_id(&id).await {
+        Ok(collection) => {
+            Ok(serde_json::to_value(collection).map_err(|e| e.to_string())?)
+        }
+        Err(e) => {
+            tracing::error!("Failed to get collection: {}", e);
+            Err(format!("Failed to get collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn update_collection(
+    id: String,
+    name: Option<String>,
+    description: Option<String>,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    tracing::info!("Updating collection: {}", id);
+    
+    match state.database.update_collection(&id, name.as_deref(), description.as_deref()).await {
+        Ok(()) => {
+            tracing::info!("Collection updated successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to update collection: {}", e);
+            Err(format!("Failed to update collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn delete_collection(
+    id: String,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    tracing::info!("Deleting collection: {}", id);
+    
+    match state.database.delete_collection(&id).await {
+        Ok(()) => {
+            tracing::info!("Collection deleted successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to delete collection: {}", e);
+            Err(format!("Failed to delete collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn add_file_to_collection(
+    file_id: String,
+    collection_id: String,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    tracing::info!("Adding file {} to collection {}", file_id, collection_id);
+    
+    match state.database.add_file_to_collection(&file_id, &collection_id).await {
+        Ok(()) => {
+            tracing::info!("File added to collection successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to add file to collection: {}", e);
+            Err(format!("Failed to add file to collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn remove_file_from_collection(
+    file_id: String,
+    collection_id: String,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    tracing::info!("Removing file {} from collection {}", file_id, collection_id);
+    
+    match state.database.remove_file_from_collection(&file_id, &collection_id).await {
+        Ok(()) => {
+            tracing::info!("File removed from collection successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Failed to remove file from collection: {}", e);
+            Err(format!("Failed to remove file from collection: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn get_files_in_collection(
+    collection_id: String,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    match state.database.get_files_in_collection(&collection_id).await {
+        Ok(files) => {
+            tracing::debug!("Retrieved {} files in collection {}", files.len(), collection_id);
+            
+            // Convert to frontend format
+            let results: Vec<serde_json::Value> = files
+                .iter()
+                .map(|file| {
+                    serde_json::json!({
+                        "file": {
+                            "id": file.id,
+                            "path": file.path,
+                            "name": file.name,
+                            "extension": file.extension,
+                            "size": file.size,
+                            "created_at": file.created_at,
+                            "modified_at": file.modified_at,
+                            "mime_type": file.mime_type,
+                            "processing_status": file.processing_status
+                        },
+                        "score": 1.0,
+                        "snippet": file.ai_analysis.as_ref()
+                            .map(|analysis| {
+                                if analysis.len() > 200 {
+                                    format!("{}...", &analysis[..200])
+                                } else {
+                                    analysis.clone()
+                                }
+                            })
+                            .unwrap_or_else(|| "No analysis available".to_string()),
+                        "highlights": file.tags.as_ref()
+                            .and_then(|tags| serde_json::from_str::<Vec<String>>(tags).ok())
+                            .unwrap_or_default()
+                    })
+                })
+                .collect();
+            
+            Ok(serde_json::json!({
+                "results": results,
+                "total": results.len()
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to get files in collection: {}", e);
+            Err(format!("Failed to get files in collection: {}", e))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -347,7 +532,15 @@ async fn main() {
             stop_system_monitoring,
             get_search_suggestions,
             get_available_models,
-            scan_directory
+            scan_directory,
+            create_collection,
+            get_collections,
+            get_collection_by_id,
+            update_collection,
+            delete_collection,
+            add_file_to_collection,
+            remove_file_from_collection,
+            get_files_in_collection
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");

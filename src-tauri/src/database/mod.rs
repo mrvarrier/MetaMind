@@ -378,4 +378,196 @@ impl Database {
             error_message: row.get("error_message"),
         })
     }
+
+    // Collections operations
+    pub async fn create_collection(&self, name: &str, description: Option<&str>) -> Result<Collection> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now();
+        
+        sqlx::query(
+            r#"
+            INSERT INTO collections (id, name, description, created_at, updated_at, file_count)
+            VALUES (?, ?, ?, ?, ?, 0)
+            "#
+        )
+        .bind(&id)
+        .bind(name)
+        .bind(description)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(Collection {
+            id,
+            name: name.to_string(),
+            description: description.map(|s| s.to_string()),
+            created_at: now,
+            updated_at: now,
+            file_count: 0,
+            rules: None,
+            insights: None,
+        })
+    }
+
+    pub async fn get_collections(&self) -> Result<Vec<Collection>> {
+        let rows = sqlx::query("SELECT * FROM collections ORDER BY updated_at DESC")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut collections = Vec::new();
+        for row in rows {
+            collections.push(self.row_to_collection(row)?);
+        }
+        Ok(collections)
+    }
+
+    pub async fn get_collection_by_id(&self, id: &str) -> Result<Option<Collection>> {
+        let row = sqlx::query("SELECT * FROM collections WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(self.row_to_collection(row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn update_collection(&self, id: &str, name: Option<&str>, description: Option<&str>) -> Result<()> {
+        let mut query_parts = Vec::new();
+        let mut bindings = Vec::new();
+
+        if let Some(name) = name {
+            query_parts.push("name = ?");
+            bindings.push(name);
+        }
+        if let Some(description) = description {
+            query_parts.push("description = ?");
+            bindings.push(description);
+        }
+
+        if !query_parts.is_empty() {
+            query_parts.push("updated_at = ?");
+            let now = Utc::now().to_rfc3339();
+            bindings.push(&now);
+
+            let query = format!("UPDATE collections SET {} WHERE id = ?", query_parts.join(", "));
+            let mut sql_query = sqlx::query(&query);
+            
+            for binding in bindings {
+                sql_query = sql_query.bind(binding);
+            }
+            sql_query = sql_query.bind(id);
+            
+            sql_query.execute(&self.pool).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_collection(&self, id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM collections WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn add_file_to_collection(&self, file_id: &str, collection_id: &str) -> Result<()> {
+        let now = Utc::now().to_rfc3339();
+        
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO file_collections (file_id, collection_id, added_at)
+            VALUES (?, ?, ?)
+            "#
+        )
+        .bind(file_id)
+        .bind(collection_id)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        // Update collection file count
+        sqlx::query(
+            r#"
+            UPDATE collections 
+            SET file_count = (
+                SELECT COUNT(*) FROM file_collections WHERE collection_id = ?
+            ),
+            updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(collection_id)
+        .bind(now)
+        .bind(collection_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn remove_file_from_collection(&self, file_id: &str, collection_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM file_collections WHERE file_id = ? AND collection_id = ?")
+            .bind(file_id)
+            .bind(collection_id)
+            .execute(&self.pool)
+            .await?;
+
+        // Update collection file count
+        let now = Utc::now().to_rfc3339();
+        sqlx::query(
+            r#"
+            UPDATE collections 
+            SET file_count = (
+                SELECT COUNT(*) FROM file_collections WHERE collection_id = ?
+            ),
+            updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(collection_id)
+        .bind(now)
+        .bind(collection_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_files_in_collection(&self, collection_id: &str) -> Result<Vec<FileRecord>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT f.* FROM files f
+            INNER JOIN file_collections fc ON f.id = fc.file_id
+            WHERE fc.collection_id = ?
+            ORDER BY fc.added_at DESC
+            "#
+        )
+        .bind(collection_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut files = Vec::new();
+        for row in rows {
+            files.push(self.row_to_file_record(row)?);
+        }
+        Ok(files)
+    }
+
+    fn row_to_collection(&self, row: sqlx::sqlite::SqliteRow) -> Result<Collection> {
+        Ok(Collection {
+            id: row.get("id"),
+            name: row.get("name"),
+            description: row.get("description"),
+            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
+            file_count: row.get("file_count"),
+            rules: row.get("rules"),
+            insights: row.get("insights"),
+        })
+    }
 }
