@@ -271,6 +271,21 @@ impl FileMonitor {
             error_message: None,
         };
 
+        // Check if file already exists in database
+        match database.file_exists(&file_record.path).await {
+            Ok(true) => {
+                tracing::info!("File already exists in database, skipping: {}", path.display());
+                return Ok(());
+            }
+            Ok(false) => {
+                // File doesn't exist, continue with insertion
+            }
+            Err(e) => {
+                tracing::warn!("Could not check if file exists (database might be corrupted), continuing: {}", e);
+                // Continue anyway, INSERT OR REPLACE will handle duplicates
+            }
+        }
+        
         // Insert or update file record
         tracing::debug!("Inserting file record into database: {}", path.display());
         match database.insert_file(&file_record).await {

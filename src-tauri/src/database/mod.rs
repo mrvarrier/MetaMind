@@ -252,6 +252,14 @@ impl Database {
     }
 
     // File operations
+    pub async fn file_exists(&self, path: &str) -> Result<bool> {
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM files WHERE path = ?")
+            .bind(path)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(count.0 > 0)
+    }
+
     pub async fn insert_file(&self, file: &FileRecord) -> Result<()> {
         let embedding_blob = file.embedding.as_ref().map(|e| {
             e.iter().flat_map(|f| f.to_le_bytes()).collect::<Vec<u8>>()

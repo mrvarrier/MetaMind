@@ -356,6 +356,38 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
     }
 }
 
+// Database maintenance commands
+#[tauri::command]
+async fn reset_database(state: State<'_, AppState>) -> Result<(), String> {
+    tracing::warn!("Resetting database due to corruption or user request");
+    
+    // Close existing connections by creating a new database instance
+    let data_dir = dirs::data_dir()
+        .ok_or("Failed to get data directory")?
+        .join("MetaMind");
+    
+    tokio::fs::create_dir_all(&data_dir)
+        .await
+        .map_err(|e| format!("Failed to create data directory: {}", e))?;
+    
+    let db_path = data_dir.join("metamind.db");
+    
+    // Remove the corrupted database file
+    if db_path.exists() {
+        tokio::fs::remove_file(&db_path)
+            .await
+            .map_err(|e| format!("Failed to remove corrupted database: {}", e))?;
+    }
+    
+    // Initialize a fresh database
+    let new_database = Database::new(db_path)
+        .await
+        .map_err(|e| format!("Failed to create new database: {}", e))?;
+    
+    tracing::info!("Database reset completed successfully");
+    Ok(())
+}
+
 // Collections commands
 #[tauri::command]
 async fn create_collection(
@@ -601,6 +633,7 @@ async fn main() {
             get_available_models,
             scan_directory,
             process_single_file,
+            reset_database,
             create_collection,
             get_collections,
             get_collection_by_id,
