@@ -78,6 +78,9 @@ impl Database {
         self.create_file_collections_table().await?;
         self.create_fts_table().await?;
         
+        // Run schema migrations
+        self.migrate_schema().await?;
+        
         Ok(())
     }
 
@@ -198,6 +201,53 @@ impl Database {
             "#
         ).execute(&self.pool).await?;
 
+        Ok(())
+    }
+
+    async fn migrate_schema(&self) -> Result<()> {
+        // Check if content column exists in files table
+        let columns: Vec<(String,)> = sqlx::query_as("PRAGMA table_info(files)")
+            .fetch_all(&self.pool)
+            .await?
+            .into_iter()
+            .map(|row: (i32, String, String, i32, Option<String>, i32)| (row.1,))
+            .collect();
+        
+        let has_content_column = columns.iter().any(|(name,)| name == "content");
+        
+        if !has_content_column {
+            tracing::info!("Adding content column to files table");
+            sqlx::query("ALTER TABLE files ADD COLUMN content TEXT")
+                .execute(&self.pool)
+                .await?;
+            
+            // Recreate FTS triggers to use the new content column
+            sqlx::query("DROP TRIGGER IF EXISTS files_fts_insert").execute(&self.pool).await?;
+            sqlx::query("DROP TRIGGER IF EXISTS files_fts_update").execute(&self.pool).await?;
+            
+            // Recreate FTS triggers
+            sqlx::query(
+                r#"
+                CREATE TRIGGER IF NOT EXISTS files_fts_insert AFTER INSERT ON files BEGIN
+                    INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
+                    VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
+                END
+                "#
+            ).execute(&self.pool).await?;
+
+            sqlx::query(
+                r#"
+                CREATE TRIGGER IF NOT EXISTS files_fts_update AFTER UPDATE ON files BEGIN
+                    DELETE FROM files_fts WHERE id = old.id;
+                    INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
+                    VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
+                END
+                "#
+            ).execute(&self.pool).await?;
+            
+            tracing::info!("Schema migration completed successfully");
+        }
+        
         Ok(())
     }
 

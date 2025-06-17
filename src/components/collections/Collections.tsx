@@ -266,11 +266,28 @@ export function Collections() {
             try {
               // For individual files, we don't need to start file monitoring,
               // just trigger processing directly
+              console.log('Processing file:', file.path);
               await safeInvoke('scan_directory', { path: file.path });
-              console.log('File processed:', file.path);
+              console.log('Successfully processed file:', file.path);
             } catch (monitorError) {
-              console.error('Failed to process file:', monitorError);
-              setError(`Failed to process file ${file.path}`);
+              console.error('Failed to process file:', file.path, monitorError);
+              
+              // Provide more specific error message based on the error
+              let errorMessage = `Failed to process file: ${file.path}`;
+              if (typeof monitorError === 'string') {
+                if (monitorError.includes('does not exist')) {
+                  errorMessage = `File not found: ${file.path}`;
+                } else if (monitorError.includes('permission denied')) {
+                  errorMessage = `Permission denied: ${file.path}`;
+                } else if (monitorError.includes('already exists')) {
+                  errorMessage = `File already being monitored: ${file.path}`;
+                } else {
+                  errorMessage = `Error processing ${file.path}: ${monitorError}`;
+                }
+              }
+              
+              setError(errorMessage);
+              // Don't break the loop, continue with other files
             }
           }
           

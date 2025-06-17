@@ -307,6 +307,31 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
     
     use crate::file_monitor::FileMonitor;
     
+    // Validate file exists and is accessible
+    if !std::path::Path::new(&path).exists() {
+        let error_msg = format!("File does not exist: {}", path);
+        tracing::error!("{}", error_msg);
+        return Err(error_msg);
+    }
+    
+    if !std::path::Path::new(&path).is_file() {
+        let error_msg = format!("Path is not a file: {}", path);
+        tracing::error!("{}", error_msg);
+        return Err(error_msg);
+    }
+    
+    // Check file permissions
+    match tokio::fs::metadata(&path).await {
+        Ok(metadata) => {
+            tracing::info!("File metadata - size: {} bytes, readable: true", metadata.len());
+        }
+        Err(e) => {
+            let error_msg = format!("Cannot read file metadata for {}: {}", path, e);
+            tracing::error!("{}", error_msg);
+            return Err(error_msg);
+        }
+    }
+    
     // Create a temporary file monitor to process the single file
     let temp_monitor = FileMonitor::new(state.database.clone())
         .with_processing_queue(state.processing_queue.clone());
@@ -314,12 +339,19 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
     // Process the file using the private method (we'll need to make it public)
     match temp_monitor.process_single_file_public(&path).await {
         Ok(()) => {
-            tracing::info!("Single file processing completed successfully");
+            tracing::info!("Single file processing completed successfully: {}", path);
             Ok(())
         }
         Err(e) => {
-            tracing::error!("Single file processing failed: {}", e);
-            Err(format!("Single file processing failed: {}", e))
+            tracing::error!("Single file processing failed for {}: {:?}", path, e);
+            // Provide more specific error message
+            let error_msg = match e.to_string().as_str() {
+                s if s.contains("UNIQUE constraint failed") => format!("File already exists in database: {}", path),
+                s if s.contains("permission denied") => format!("Permission denied accessing file: {}", path),
+                s if s.contains("no such file") => format!("File not found: {}", path),
+                _ => format!("Failed to process file {}: {}", path, e)
+            };
+            Err(error_msg)
         }
     }
 }

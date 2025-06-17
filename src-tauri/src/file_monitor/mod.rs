@@ -272,19 +272,32 @@ impl FileMonitor {
         };
 
         // Insert or update file record
-        database.insert_file(&file_record).await?;
-        
-        // Add to processing queue if available
-        if let Some(queue) = processing_queue {
-            let queue_guard = queue.lock().await;
-            if let Err(e) = queue_guard.add_job(&file_record, JobPriority::Normal).await {
-                tracing::error!("Failed to add file to processing queue: {}", e);
-            } else {
-                tracing::debug!("Added file to processing queue: {}", path.display());
+        tracing::debug!("Inserting file record into database: {}", path.display());
+        match database.insert_file(&file_record).await {
+            Ok(()) => {
+                tracing::debug!("Successfully inserted file record: {}", path.display());
+            }
+            Err(e) => {
+                tracing::error!("Failed to insert file record for {}: {:?}", path.display(), e);
+                return Err(e);
             }
         }
         
-        tracing::debug!("Processed file: {}", path.display());
+        // Add to processing queue if available
+        if let Some(queue) = processing_queue {
+            tracing::debug!("Adding file to processing queue: {}", path.display());
+            let queue_guard = queue.lock().await;
+            if let Err(e) = queue_guard.add_job(&file_record, JobPriority::Normal).await {
+                tracing::error!("Failed to add file to processing queue: {}", e);
+                // Don't fail the entire operation if queue addition fails
+            } else {
+                tracing::debug!("Successfully added file to processing queue: {}", path.display());
+            }
+        } else {
+            tracing::warn!("No processing queue available for file: {}", path.display());
+        }
+        
+        tracing::debug!("Successfully processed file: {}", path.display());
         Ok(())
     }
 
@@ -360,8 +373,19 @@ impl FileMonitor {
     }
 
     pub async fn process_single_file_public(&self, path: &str) -> Result<()> {
+        tracing::debug!("Starting single file processing for: {}", path);
         let path = std::path::Path::new(path);
-        Self::process_file_with_queue(&self.database, &self.processing_queue, path).await
+        
+        match Self::process_file_with_queue(&self.database, &self.processing_queue, path).await {
+            Ok(()) => {
+                tracing::debug!("Successfully processed single file: {}", path.display());
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Error in process_file_with_queue for {}: {:?}", path.display(), e);
+                Err(e)
+            }
+        }
     }
 
     fn should_exclude_path(path: &Path, excluded_patterns: &[String]) -> bool {
