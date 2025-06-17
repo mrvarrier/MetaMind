@@ -44,13 +44,19 @@ pub struct Collection {
 
 impl Database {
     pub async fn new<P: AsRef<Path>>(database_path: P) -> Result<Self> {
-        let database_url = format!("sqlite:{}", database_path.as_ref().display());
+        let database_path = database_path.as_ref();
         
-        // Create the database file if it doesn't exist
-        if let Some(parent) = database_path.as_ref().parent() {
+        // Create the database directory if it doesn't exist
+        if let Some(parent) = database_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
 
+        // Create the database file if it doesn't exist
+        if !database_path.exists() {
+            tokio::fs::File::create(database_path).await?;
+        }
+
+        let database_url = format!("sqlite:{}", database_path.display());
         let pool = SqlitePool::connect(&database_url).await?;
         
         let db = Database { pool };
