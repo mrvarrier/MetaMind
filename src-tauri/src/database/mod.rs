@@ -408,6 +408,47 @@ impl Database {
         }))
     }
 
+    pub async fn get_location_stats(&self, location_path: &str) -> Result<serde_json::Value> {
+        // Handle both individual files and directories
+        let query = if std::path::Path::new(location_path).is_file() {
+            // For individual files, match exact path
+            r#"
+            SELECT 
+                COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed,
+                COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending,
+                COUNT(CASE WHEN processing_status = 'processing' THEN 1 END) as processing,
+                COUNT(CASE WHEN processing_status = 'error' THEN 1 END) as errors,
+                COUNT(*) as total
+            FROM files
+            WHERE path = ?
+            "#
+        } else {
+            // For directories, match files within that directory (path starts with the directory path)
+            r#"
+            SELECT 
+                COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed,
+                COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending,
+                COUNT(CASE WHEN processing_status = 'processing' THEN 1 END) as processing,
+                COUNT(CASE WHEN processing_status = 'error' THEN 1 END) as errors,
+                COUNT(*) as total
+            FROM files
+            WHERE path LIKE ? || '%'
+            "#
+        };
+        
+        let stats = sqlx::query(query)
+            .bind(location_path)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(serde_json::json!({
+            "total_files": stats.get::<i64, _>("total"),
+            "processed_files": stats.get::<i64, _>("completed"),
+            "pending_files": stats.get::<i64, _>("pending") + stats.get::<i64, _>("processing"),
+            "error_files": stats.get::<i64, _>("errors")
+        }))
+    }
+
     fn row_to_file_record(&self, row: sqlx::sqlite::SqliteRow) -> Result<FileRecord> {
         let embedding_blob: Option<Vec<u8>> = row.try_get("embedding")?;
         let embedding = embedding_blob.map(|blob| {

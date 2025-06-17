@@ -573,6 +573,31 @@ async fn get_files_in_collection(
     }
 }
 
+#[tauri::command]
+async fn get_location_stats(
+    path: String,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    tracing::debug!("Getting stats for location: {}", path);
+    
+    match state.database.get_location_stats(&path).await {
+        Ok(stats) => {
+            tracing::debug!("Retrieved stats for {}: {:?}", path, stats);
+            Ok(stats)
+        }
+        Err(e) => {
+            tracing::error!("Failed to get location stats for {}: {}", path, e);
+            // Return empty stats instead of failing
+            Ok(serde_json::json!({
+                "total_files": 0,
+                "processed_files": 0,
+                "pending_files": 0,
+                "error_files": 0
+            }))
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -641,7 +666,8 @@ async fn main() {
             delete_collection,
             add_file_to_collection,
             remove_file_from_collection,
-            get_files_in_collection
+            get_files_in_collection,
+            get_location_stats
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");

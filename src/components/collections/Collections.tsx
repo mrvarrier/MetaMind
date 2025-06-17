@@ -52,7 +52,7 @@ export function Collections() {
           const pathParts = folderPath.split('/');
           const name = pathParts[pathParts.length - 1] || folderPath;
           
-          // Get real processing statistics from backend
+          // Get real processing statistics for this specific location
           let filesCount = 0;
           let processedCount = 0;
           let pendingCount = 0;
@@ -61,25 +61,20 @@ export function Collections() {
           
           try {
             if (isTauriApp()) {
-              // Get processing status from backend
-              const processingStatus = await safeInvoke('get_processing_status');
-              if (processingStatus && processingStatus.database) {
-                // Use real data from backend
-                const stats = processingStatus.database;
-                filesCount = stats.total_files || 0;
-                processedCount = stats.processed_files || 0;
-                pendingCount = stats.pending_files || 0;
-                errorCount = stats.error_files || 0;
+              // Get location-specific statistics from backend
+              const locationStats = await safeInvoke('get_location_stats', { path: folderPath });
+              if (locationStats) {
+                filesCount = locationStats.total_files || 0;
+                processedCount = locationStats.processed_files || 0;
+                pendingCount = locationStats.pending_files || 0;
+                errorCount = locationStats.error_files || 0;
               }
               
-              // Try to scan the directory to get file count
-              try {
-                await safeInvoke('scan_directory', { path: folderPath });
-                status = 'active';
-              } catch (scanError) {
-                console.warn('Failed to scan directory:', scanError);
+              // Set status based on whether there are any errors
+              if (errorCount > 0) {
                 status = 'error';
-                errorCount = 1;
+              } else {
+                status = 'active';
               }
             } else {
               // Web mode - use some realistic mock data
@@ -89,7 +84,7 @@ export function Collections() {
               errorCount = Math.max(0, filesCount - processedCount - pendingCount);
             }
           } catch (error) {
-            console.error('Error getting folder statistics:', error);
+            console.error('Error getting location statistics:', error);
             status = 'error';
             errorCount = 1;
           }
