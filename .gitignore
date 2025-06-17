@@ -418,6 +418,7 @@ error_reports/
 .claude/
 PROJECT_PROMPT.md
 IMPLEMENTATION_STATUS.md
+screenshot/
 
 # ==============================================
 # End of .gitignore
