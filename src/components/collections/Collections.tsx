@@ -24,24 +24,26 @@ export function Collections() {
   const [monitoredLocations, setMonitoredLocations] = useState<MonitoredLocation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false); // Temporarily disable auto-refresh
 
 
-  // Load monitored locations on component mount and set up auto-refresh
+  // Load monitored locations on component mount
   useEffect(() => {
     loadMonitoredLocations();
+  }, []);
+
+  // Set up auto-refresh when enabled
+  useEffect(() => {
+    if (!autoRefresh) return;
     
-    // Set up auto-refresh every 3 seconds when there's active processing
     const interval = setInterval(() => {
-      if (autoRefresh) {
-        // Check if there are any pending or processing files
-        const hasActiveProcessing = monitoredLocations.some(location => 
-          location.pendingCount > 0 || location.status === 'active'
-        );
-        
-        if (hasActiveProcessing) {
-          loadMonitoredLocations();
-        }
+      // Check if there are any pending or processing files
+      const hasActiveProcessing = monitoredLocations.some(location => 
+        location.pendingCount > 0 || location.status === 'active'
+      );
+      
+      if (hasActiveProcessing || monitoredLocations.length === 0) {
+        loadMonitoredLocations();
       }
     }, 3000);
     
@@ -50,12 +52,17 @@ export function Collections() {
 
   const loadMonitoredLocations = async () => {
     try {
+      console.log('Loading monitored locations...');
       setIsLoading(true);
       setError(null);
       
+      console.log('Onboarding state:', onboardingState);
+      
       // Check if selectedFolders exists and is an array
       if (!onboardingState.selectedFolders || !Array.isArray(onboardingState.selectedFolders)) {
+        console.log('No selected folders found');
         setMonitoredLocations([]);
+        setIsLoading(false);
         return;
       }
       
@@ -122,12 +129,15 @@ export function Collections() {
         })
       );
       
+      console.log('Found locations:', locations);
       setMonitoredLocations(locations);
     } catch (error) {
       console.error('Failed to load monitored locations:', error);
       console.error('Error details:', error);
       setError(`Failed to load monitored locations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setMonitoredLocations([]); // Set empty array on error
     } finally {
+      console.log('Finished loading, setting isLoading to false');
       setIsLoading(false);
     }
   };
