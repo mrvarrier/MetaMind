@@ -2,7 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::Arc;
-use tauri::{Manager, State};
+use tauri::State;
 use tokio::sync::{RwLock, Mutex};
 use serde_json;
 use sysinfo::{System, SystemExt, CpuExt, DiskExt};
@@ -344,7 +344,7 @@ async fn main() {
             get_available_models,
             scan_directory
         ])
-        .setup(|app| {
+        .setup(|_app| {
             tracing::info!("MetaMind is starting up!");
             Ok(())
         })

@@ -27,6 +27,7 @@ pub enum JobPriority {
     Critical = 4,
 }
 
+#[derive(Debug)]
 pub struct ProcessingQueue {
     database: Database,
     // ai_processor: AIProcessor, // Temporarily disabled
@@ -257,12 +258,13 @@ impl ProcessingQueue {
 
     pub async fn requeue_pending_files(&self) -> Result<()> {
         let pending_files = self.database.get_files_by_status("pending").await?;
+        let count = pending_files.len();
         
         for file in pending_files {
             self.add_job(&file, JobPriority::Normal).await?;
         }
         
-        tracing::info!("Requeued {} pending files", pending_files.len());
+        tracing::info!("Requeued {} pending files", count);
         Ok(())
     }
 
