@@ -57,8 +57,14 @@ impl Database {
             tokio::fs::File::create(database_path).await?;
         }
 
-        let database_url = format!("sqlite:{}", database_path.display());
+        let database_url = format!("sqlite:{}?mode=rwc", database_path.display());
         let pool = SqlitePool::connect(&database_url).await?;
+        
+        // Set pragmas for better reliability
+        sqlx::query("PRAGMA journal_mode = WAL").execute(&pool).await?;
+        sqlx::query("PRAGMA synchronous = NORMAL").execute(&pool).await?;
+        sqlx::query("PRAGMA cache_size = 1000").execute(&pool).await?;
+        sqlx::query("PRAGMA temp_store = memory").execute(&pool).await?;
         
         let db = Database { pool };
         

@@ -358,10 +358,9 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
 
 // Database maintenance commands
 #[tauri::command]
-async fn reset_database(state: State<'_, AppState>) -> Result<(), String> {
+async fn reset_database(_state: State<'_, AppState>) -> Result<(), String> {
     tracing::warn!("Resetting database due to corruption or user request");
     
-    // Close existing connections by creating a new database instance
     let data_dir = dirs::data_dir()
         .ok_or("Failed to get data directory")?
         .join("MetaMind");
@@ -372,19 +371,23 @@ async fn reset_database(state: State<'_, AppState>) -> Result<(), String> {
     
     let db_path = data_dir.join("metamind.db");
     
-    // Remove the corrupted database file
-    if db_path.exists() {
-        tokio::fs::remove_file(&db_path)
-            .await
-            .map_err(|e| format!("Failed to remove corrupted database: {}", e))?;
+    // Remove the corrupted database file and any WAL files
+    for file_suffix in ["", "-wal", "-shm"] {
+        let file_path = if file_suffix.is_empty() {
+            db_path.clone()
+        } else {
+            db_path.with_extension(format!("db{}", file_suffix))
+        };
+        
+        if file_path.exists() {
+            tokio::fs::remove_file(&file_path)
+                .await
+                .map_err(|e| format!("Failed to remove database file {}: {}", file_path.display(), e))?;
+            tracing::info!("Removed database file: {}", file_path.display());
+        }
     }
     
-    // Initialize a fresh database
-    let new_database = Database::new(db_path)
-        .await
-        .map_err(|e| format!("Failed to create new database: {}", e))?;
-    
-    tracing::info!("Database reset completed successfully");
+    tracing::info!("Database reset completed successfully - application restart required");
     Ok(())
 }
 
