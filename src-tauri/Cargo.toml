@@ -41,7 +41,7 @@ walkdir = "2.4"
 pdf-extract = "0.7"
 lopdf = "0.32"
 image = "0.24"
-kamadak-exif = "0.5"
+# kamadak-exif = "0.5"  # Temporarily disabled
 
 # Text processing (simplified for initial version)
 # Note: Advanced AI features can be added later

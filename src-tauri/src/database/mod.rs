@@ -1,8 +1,3 @@
-pub mod schema;
-pub mod migrations;
-pub mod models;
-pub mod queries;
-
 use sqlx::{SqlitePool, Row};
 use anyhow::Result;
 use std::path::Path;
