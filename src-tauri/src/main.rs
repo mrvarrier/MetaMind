@@ -306,7 +306,6 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
     tracing::info!("Processing single file: {}", path);
     
     use crate::file_monitor::FileMonitor;
-    use crate::processing_queue::JobPriority;
     
     // Create a temporary file monitor to process the single file
     let temp_monitor = FileMonitor::new(state.database.clone())

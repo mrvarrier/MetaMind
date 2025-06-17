@@ -371,6 +371,7 @@ impl Database {
                 .transpose()?,
             mime_type: row.get("mime_type"),
             hash: row.get("hash"),
+            content: row.get("content"),
             tags: row.get("tags"),
             metadata: row.get("metadata"),
             ai_analysis: row.get("ai_analysis"),
