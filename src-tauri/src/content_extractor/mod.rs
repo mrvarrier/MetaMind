@@ -77,7 +77,7 @@ impl ContentExtractor {
         
         match pdf_extract::extract_text_from_mem(&bytes) {
             Ok(text) => {
-                let mut metadata = ContentMetadata::default();
+                let metadata = ContentMetadata::default();
                 
                 // Try to extract PDF metadata using lopdf (temporarily simplified)
                 if let Ok(doc) = lopdf::Document::load_mem(&bytes) {
@@ -125,7 +125,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let text = fs::read_to_string(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         metadata.word_count = Some(text.split_whitespace().count() as u32);
         
         // Try to detect language (simple heuristic)
@@ -149,7 +149,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let bytes = fs::read(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         let mut text = String::new();
         
         // Try to open image and get dimensions
@@ -202,7 +202,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let metadata_std = fs::metadata(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         let text = format!(
             "Document file: {}\nSize: {} bytes\nExtension: {}",
             path.file_name().unwrap_or_default().to_string_lossy(),
@@ -221,7 +221,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let text = fs::read_to_string(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         
         // Try to parse JSON and extract useful information
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -245,7 +245,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let text = fs::read_to_string(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         let lines: Vec<&str> = text.lines().collect();
         
         // Extract header and some sample data for searching
@@ -275,7 +275,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let text = fs::read_to_string(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         
         // Basic HTML/XML content extraction (remove tags)
         let content = Self::strip_html_tags(&text);
@@ -300,7 +300,7 @@ impl ContentExtractor {
         let path = path.as_ref();
         let text = fs::read_to_string(path).await?;
         
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         metadata.word_count = Some(text.split_whitespace().count() as u32);
         
         // Extract comments and function names for better searchability
@@ -330,7 +330,7 @@ impl ContentExtractor {
         
         // If not readable as text, extract metadata only
         let metadata_std = fs::metadata(path).await?;
-        let mut metadata = ContentMetadata::default();
+        let metadata = ContentMetadata::default();
         
         let text = format!(
             "Binary file: {}\nSize: {} bytes\nExtension: {}",

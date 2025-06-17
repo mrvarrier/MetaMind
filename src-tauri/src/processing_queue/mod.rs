@@ -57,7 +57,7 @@ impl ProcessingQueue {
         let queue = self.queue.clone();
         let database = self.database.clone();
         // let ai_processor = self.ai_processor.clone(); // Temporarily disabled
-        let semaphore = self.processing_semaphore.clone();
+        let _semaphore = self.processing_semaphore.clone();
         let max_retries = self.max_retries;
 
         tokio::spawn(async move {

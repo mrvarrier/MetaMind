@@ -344,6 +344,7 @@ impl FileMonitor {
                     // Create a temporary FileMonitor for the rescan
                     let monitor = FileMonitor {
                         database: database.clone(),
+                        processing_queue: None, // No queue for periodic rescans
                         watched_paths: watched_paths.clone(),
                         excluded_patterns: excluded_patterns.clone(),
                         max_file_size: 100 * 1024 * 1024,
