@@ -120,7 +120,7 @@ export function Collections() {
     }
   };
 
-  const addNewLocation = async () => {
+  const addNewFolder = async () => {
     try {
       setError(null);
       
@@ -216,6 +216,103 @@ export function Collections() {
     } catch (error) {
       console.error('Error adding location:', error);
       setError('Failed to add location');
+    }
+  };
+
+  const addNewFile = async () => {
+    try {
+      setError(null);
+      
+      if (isTauriApp()) {
+        const selected = await open({
+          directory: false,
+          multiple: true,
+          title: "Select files to monitor"
+        });
+        
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected];
+          const newFiles = paths.map(path => ({ path, type: 'file' as const }));
+          
+          // Update app store first
+          const updatedFolders = [...onboardingState.selectedFolders, ...newFiles];
+          updateOnboardingState({
+            selectedFolders: updatedFolders
+          });
+          
+          // Immediately update UI with new locations (optimistic update)
+          const newLocations = newFiles.map((file, index) => {
+            const pathParts = file.path.split('/');
+            const name = pathParts[pathParts.length - 1] || file.path;
+            return {
+              id: `location-new-${Date.now()}-${index}`,
+              path: file.path,
+              type: file.type,
+              name,
+              addedAt: new Date().toISOString(),
+              status: 'active' as const,
+              filesCount: 1, // Single file
+              processedCount: 0,
+              pendingCount: 1,
+              errorCount: 0,
+              lastScan: new Date().toISOString(),
+            };
+          });
+          
+          setMonitoredLocations(prev => [...prev, ...newLocations]);
+          
+          // Start monitoring individual files
+          for (const file of newFiles) {
+            try {
+              // For individual files, we don't need to start file monitoring,
+              // just trigger processing directly
+              await safeInvoke('scan_directory', { path: file.path });
+              console.log('File processed:', file.path);
+            } catch (monitorError) {
+              console.error('Failed to process file:', monitorError);
+              setError(`Failed to process file ${file.path}`);
+            }
+          }
+          
+          // Reload to get real statistics after a short delay
+          setTimeout(() => {
+            loadMonitoredLocations();
+          }, 3000);
+        }
+      } else {
+        // Web mode - simulate adding a file
+        const mockFile = {
+          path: `/Users/Documents/sample-file-${Date.now()}.pdf`,
+          type: 'file' as const
+        };
+        
+        const updatedFolders = [...onboardingState.selectedFolders, mockFile];
+        updateOnboardingState({
+          selectedFolders: updatedFolders
+        });
+        
+        // Immediately show the new location
+        const pathParts = mockFile.path.split('/');
+        const name = pathParts[pathParts.length - 1] || mockFile.path;
+        const newLocation = {
+          id: `location-new-${Date.now()}`,
+          path: mockFile.path,
+          type: mockFile.type,
+          name,
+          addedAt: new Date().toISOString(),
+          status: 'active' as const,
+          filesCount: 1,
+          processedCount: 0,
+          pendingCount: 1,
+          errorCount: 0,
+          lastScan: new Date().toISOString(),
+        };
+        
+        setMonitoredLocations(prev => [...prev, newLocation]);
+      }
+    } catch (error) {
+      console.error('Error adding file:', error);
+      setError('Failed to add file');
     }
   };
 
@@ -390,15 +487,28 @@ export function Collections() {
             </p>
           </div>
           
-          <Button 
-            onClick={addNewLocation}
-            className="flex items-center space-x-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span>Add Location</span>
-          </Button>
+          <div className="flex items-center space-x-3">
+            <Button 
+              onClick={addNewFolder}
+              className="flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span>Add Folder</span>
+            </Button>
+            
+            <Button 
+              onClick={addNewFile}
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Add File</span>
+            </Button>
+          </div>
         </div>
 
         {/* Error Display */}
@@ -572,9 +682,14 @@ export function Collections() {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               Add folders or files to start monitoring and AI processing
             </p>
-            <Button onClick={addNewLocation}>
-              Add Location
-            </Button>
+            <div className="flex items-center justify-center space-x-3">
+              <Button onClick={addNewFolder}>
+                Add Folder
+              </Button>
+              <Button onClick={addNewFile} variant="outline">
+                Add File
+              </Button>
+            </div>
           </motion.div>
         )}
       </div>

@@ -282,6 +282,13 @@ async fn get_available_models() -> Result<serde_json::Value, String> {
 async fn scan_directory(path: String, state: State<'_, AppState>) -> Result<(), String> {
     tracing::info!("Starting directory scan: {}", path);
     
+    // Check if path is a file or directory
+    let path_buf = std::path::Path::new(&path);
+    if path_buf.is_file() {
+        // Process single file
+        return process_single_file(path, state).await;
+    }
+    
     match state.file_monitor.scan_directory(&path).await {
         Ok(()) => {
             tracing::info!("Directory scan completed successfully");
@@ -290,6 +297,30 @@ async fn scan_directory(path: String, state: State<'_, AppState>) -> Result<(), 
         Err(e) => {
             tracing::error!("Directory scan failed: {}", e);
             Err(format!("Directory scan failed: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn process_single_file(path: String, state: State<'_, AppState>) -> Result<(), String> {
+    tracing::info!("Processing single file: {}", path);
+    
+    use crate::file_monitor::FileMonitor;
+    use crate::processing_queue::JobPriority;
+    
+    // Create a temporary file monitor to process the single file
+    let temp_monitor = FileMonitor::new(state.database.clone())
+        .with_processing_queue(state.processing_queue.clone());
+    
+    // Process the file using the private method (we'll need to make it public)
+    match temp_monitor.process_single_file_public(&path).await {
+        Ok(()) => {
+            tracing::info!("Single file processing completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            tracing::error!("Single file processing failed: {}", e);
+            Err(format!("Single file processing failed: {}", e))
         }
     }
 }
@@ -538,6 +569,7 @@ async fn main() {
             get_search_suggestions,
             get_available_models,
             scan_directory,
+            process_single_file,
             create_collection,
             get_collections,
             get_collection_by_id,

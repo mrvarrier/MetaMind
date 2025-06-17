@@ -21,6 +21,7 @@ pub struct FileRecord {
     pub last_accessed: Option<DateTime<Utc>>,
     pub mime_type: Option<String>,
     pub hash: Option<String>,
+    pub content: Option<String>,
     pub tags: Option<String>,
     pub metadata: Option<String>,
     pub ai_analysis: Option<String>,
@@ -94,6 +95,7 @@ impl Database {
                 last_accessed TEXT,
                 mime_type TEXT,
                 hash TEXT,
+                content TEXT,
                 tags TEXT,
                 metadata TEXT,
                 ai_analysis TEXT,
@@ -173,7 +175,7 @@ impl Database {
             r#"
             CREATE TRIGGER IF NOT EXISTS files_fts_insert AFTER INSERT ON files BEGIN
                 INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
-                VALUES (new.id, new.name, COALESCE(new.metadata, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
+                VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
             END
             "#
         ).execute(&self.pool).await?;
@@ -191,7 +193,7 @@ impl Database {
             CREATE TRIGGER IF NOT EXISTS files_fts_update AFTER UPDATE ON files BEGIN
                 DELETE FROM files_fts WHERE id = old.id;
                 INSERT INTO files_fts(id, name, content, tags, ai_analysis) 
-                VALUES (new.id, new.name, COALESCE(new.metadata, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
+                VALUES (new.id, new.name, COALESCE(new.content, ''), COALESCE(new.tags, ''), COALESCE(new.ai_analysis, ''));
             END
             "#
         ).execute(&self.pool).await?;
@@ -209,9 +211,9 @@ impl Database {
             r#"
             INSERT OR REPLACE INTO files 
             (id, path, name, extension, size, created_at, modified_at, last_accessed, 
-             mime_type, hash, tags, metadata, ai_analysis, embedding, indexed_at, 
+             mime_type, hash, content, tags, metadata, ai_analysis, embedding, indexed_at, 
              processing_status, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#
         )
         .bind(&file.id)
@@ -224,6 +226,7 @@ impl Database {
         .bind(file.last_accessed.map(|dt| dt.to_rfc3339()))
         .bind(&file.mime_type)
         .bind(&file.hash)
+        .bind(&file.content)
         .bind(&file.tags)
         .bind(&file.metadata)
         .bind(&file.ai_analysis)
@@ -275,14 +278,15 @@ impl Database {
         Ok(())
     }
 
-    pub async fn update_file_analysis(&self, file_id: &str, analysis: &str, tags: Option<&str>, embedding: Option<&[f32]>) -> Result<()> {
+    pub async fn update_file_analysis(&self, file_id: &str, content: &str, analysis: &str, tags: Option<&str>, embedding: Option<&[f32]>) -> Result<()> {
         let embedding_blob = embedding.map(|e| {
             e.iter().flat_map(|f| f.to_le_bytes()).collect::<Vec<u8>>()
         });
 
         sqlx::query(
-            "UPDATE files SET ai_analysis = ?, tags = ?, embedding = ?, processing_status = 'completed', indexed_at = ? WHERE id = ?"
+            "UPDATE files SET content = ?, ai_analysis = ?, tags = ?, embedding = ?, processing_status = 'completed', indexed_at = ? WHERE id = ?"
         )
+        .bind(content)
         .bind(analysis)
         .bind(tags)
         .bind(embedding_blob)

@@ -261,6 +261,7 @@ impl FileMonitor {
             last_accessed: None,
             mime_type,
             hash: None,
+            content: None, // Will be populated during processing
             tags: None,
             metadata: None,
             ai_analysis: None,
@@ -356,6 +357,11 @@ impl FileMonitor {
                 }
             }
         });
+    }
+
+    pub async fn process_single_file_public(&self, path: &str) -> Result<()> {
+        let path = std::path::Path::new(path);
+        Self::process_file_with_queue(&self.database, &self.processing_queue, path).await
     }
 
     fn should_exclude_path(path: &Path, excluded_patterns: &[String]) -> bool {

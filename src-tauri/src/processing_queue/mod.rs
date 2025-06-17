@@ -138,6 +138,7 @@ impl ProcessingQueue {
         // Update database with basic results
         database.update_file_analysis(
             &job.file_id,
+            &extracted_content.text, // Store full extracted content
             &simple_summary,
             Some(&tags_json),
             None, // No embeddings for now
