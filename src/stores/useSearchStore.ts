@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
-import { SearchResult, SearchQuery, SearchFilters, ViewMode, SortOption, SortDirection } from '../types';
+import { SearchResult, SearchQuery, SearchFilters, ViewMode, SortOption, SortDirection, ProcessingStatus } from '../types';
 import { fileProcessingService, ProcessedFile } from '../services/fileProcessingService';
-import { isTauriApp } from '../utils/tauri';
 
 interface SearchState {
   // Search state
@@ -41,6 +40,12 @@ interface SearchState {
   addToHistory: (query: string) => void;
   clearHistory: () => void;
   goToPage: (page: number) => void;
+  
+  // Helper methods
+  convertProcessedFilesToSearchResults: (files: ProcessedFile[], query: string) => SearchResult[];
+  generateMockResults: (query: string) => SearchResult[];
+  applySorting: (results: SearchResult[]) => SearchResult[];
+  generateMockSuggestions: (query: string) => string[];
 }
 
 export const useSearchStore = create<SearchState>((set, get) => ({
@@ -62,7 +67,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   // Initialize the store
   init: () => {
     // Subscribe to file processing updates
-    fileProcessingService.subscribe((files) => {
+    fileProcessingService.subscribe((_files) => {
       const { query } = get();
       if (query.trim()) {
         // Re-run search with updated files
@@ -192,7 +197,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   },
 
   setSorting: (sortBy: SortOption, direction: SortDirection) => {
-    set({ sortBy, sortDirection });
+    set({ sortBy, sortDirection: direction });
 
     // Re-sort current results
     const { results } = get();

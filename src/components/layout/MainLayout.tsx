@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Sidebar } from "./Sidebar";
 import { SearchInterface } from "../search/SearchInterface";
 import { Collections } from "../collections/Collections";
@@ -11,7 +10,7 @@ import { safeInvoke, isTauriApp } from "../../utils/tauri";
 export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState("search");
-  const { theme, resetOnboarding } = useAppStore();
+  const { resetOnboarding } = useAppStore();
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">

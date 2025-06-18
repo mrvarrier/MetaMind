@@ -56,11 +56,12 @@ export const useAppStore = create<AppState>()(
           
           if (isTauriApp()) {
             // Load config from Tauri backend
-            config = await safeInvoke<AppConfig>('get_config') || mockData.appConfig;
+            const backendConfig = await safeInvoke<AppConfig>('get_config');
+            config = backendConfig || (mockData.appConfig as AppConfig);
           } else {
             // Use mock config for web development
             console.log('Running in web mode - using mock config');
-            config = mockData.appConfig;
+            config = mockData.appConfig as AppConfig;
           }
           
           set({ 
@@ -72,7 +73,7 @@ export const useAppStore = create<AppState>()(
           console.error('Failed to initialize app:', error);
           // Fallback to mock data if backend fails
           set({ 
-            config: mockData.appConfig,
+            config: mockData.appConfig as AppConfig,
             isInitialized: true,
             isLoading: false,
             error: null // Don't show error in development mode

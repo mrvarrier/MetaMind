@@ -20,8 +20,7 @@ function App() {
   } = useAppStore();
   
   const { 
-    initializeSystemMonitoring, 
-    systemInfo 
+    initializeSystemMonitoring
   } = useSystemStore();
   
   const { init: initializeSearch } = useSearchStore();

@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { SystemInfo, ProcessingStatus, SystemAnalysis } from '../types';
+import { SystemInfo, ProcessingStats, SystemAnalysis } from '../types';
 import { safeInvoke, isTauriApp, mockData } from '../utils/tauri';
 
 interface SystemState {
   // System info
   systemInfo: SystemInfo | null;
   systemAnalysis: SystemAnalysis | null;
-  processingStatus: ProcessingStatus | null;
+  processingStatus: ProcessingStats | null;
   
   // Monitoring state
   isMonitoring: boolean;
@@ -178,7 +178,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   getProcessingStatus: async () => {
     try {
       if (isTauriApp()) {
-        const status = await safeInvoke<ProcessingStatus>('get_processing_status');
+        const status = await safeInvoke<ProcessingStats>('get_processing_status');
         if (status) {
           set({ processingStatus: status });
         }

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "../common/Input";
 import { Button } from "../common/Button";
 import { useSearchStore } from "../../stores/useSearchStore";
 import { SearchResults } from "./SearchResults";
@@ -14,12 +13,9 @@ export function SearchInterface() {
 
   const {
     query,
-    results,
     suggestions,
     isSearching,
-    viewMode,
     search,
-    setQuery,
     getSuggestions,
     clearSearch,
   } = useSearchStore();

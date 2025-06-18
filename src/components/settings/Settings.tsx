@@ -5,7 +5,7 @@ import { useAppStore } from "../../stores/useAppStore";
 import { invoke } from "@tauri-apps/api/tauri";
 
 export function Settings() {
-  const { theme, setTheme, config } = useAppStore();
+  const { theme, setTheme } = useAppStore();
   const [activeTab, setActiveTab] = useState("general");
   const [isLoading, setIsLoading] = useState(false);
   

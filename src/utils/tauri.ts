@@ -69,7 +69,7 @@ export const mockData = {
       scan_interval_seconds: 30
     },
     ui: {
-      theme: "Auto",
+      theme: "auto",
       language: "en",
       enable_animations: true,
       compact_mode: false,
@@ -97,7 +97,16 @@ export const mockData = {
     memory_usage: 65.2,
     memory_total: 16777216, // 16GB in KB
     memory_used: 10952204,
-    disk_usage: 45.8,
+    disk_usage: [
+      {
+        name: "Macintosh HD",
+        mount_point: "/",
+        total_space: 1000000000000, // 1TB
+        available_space: 542000000000, // 542GB available
+        used_space: 458000000000, // 458GB used
+        usage_percentage: 45.8
+      }
+    ],
     thermal_state: "Normal" as const,
     performance_profile: "Balanced" as const,
     network_usage: {

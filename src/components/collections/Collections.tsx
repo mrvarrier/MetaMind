@@ -5,6 +5,38 @@ import { useAppStore } from "../../stores/useAppStore";
 import { safeInvoke, isTauriApp } from "../../utils/tauri";
 import { open } from "@tauri-apps/api/dialog";
 
+// Type definitions for backend responses
+interface LocationStats {
+  total_files?: number;
+  processed_files?: number;
+  pending_files?: number;
+  error_files?: number;
+}
+
+interface FileErrorResponse {
+  type: 'single_file' | 'directory';
+  path?: string;
+  status?: string;
+  error_message?: string;
+  last_attempt?: string;
+  error_count?: number;
+  errors?: Array<{
+    name: string;
+    error_message?: string;
+    last_attempt: string;
+  }>;
+}
+
+// Type guard functions
+function isLocationStats(obj: unknown): obj is LocationStats {
+  return typeof obj === 'object' && obj !== null;
+}
+
+function isFileErrorResponse(obj: unknown): obj is FileErrorResponse {
+  return typeof obj === 'object' && obj !== null && 
+         'type' in obj && (obj.type === 'single_file' || obj.type === 'directory');
+}
+
 interface MonitoredLocation {
   id: string;
   path: string;
@@ -98,7 +130,7 @@ export function Collections() {
               
               console.log('Received stats:', locationStats);
               
-              if (locationStats && typeof locationStats === 'object') {
+              if (isLocationStats(locationStats)) {
                 filesCount = locationStats.total_files || 0;
                 processedCount = locationStats.processed_files || 0;
                 pendingCount = locationStats.pending_files || 0;
@@ -485,19 +517,28 @@ export function Collections() {
   const showErrorDetails = async (locationPath: string) => {
     try {
       if (isTauriApp()) {
-        const errorDetails = await safeInvoke('get_file_errors', { path: locationPath });
+        const response = await safeInvoke('get_file_errors', { path: locationPath });
+        
+        if (!isFileErrorResponse(response)) {
+          alert('Invalid error details response');
+          return;
+        }
+        
+        const errorDetails = response;
         
         if (errorDetails.type === 'single_file') {
           // Single file error
           const errorMessage = errorDetails.error_message || 'Unknown processing error';
-          alert(`Error processing file:\n\nPath: ${errorDetails.path}\nStatus: ${errorDetails.status}\nError: ${errorMessage}\nLast attempt: ${new Date(errorDetails.last_attempt).toLocaleString()}`);
+          const lastAttempt = errorDetails.last_attempt ? new Date(errorDetails.last_attempt).toLocaleString() : 'Unknown';
+          alert(`Error processing file:\n\nPath: ${errorDetails.path}\nStatus: ${errorDetails.status}\nError: ${errorMessage}\nLast attempt: ${lastAttempt}`);
         } else if (errorDetails.type === 'directory') {
           // Directory with multiple error files
           if (errorDetails.errors && errorDetails.errors.length > 0) {
             let message = `Found ${errorDetails.error_count} error(s) in directory:\n${errorDetails.path}\n\nError files:\n`;
             
-            errorDetails.errors.slice(0, 5).forEach((error: any, index: number) => {
-              message += `\n${index + 1}. ${error.name}\n   Error: ${error.error_message || 'Unknown error'}\n   Last attempt: ${new Date(error.last_attempt).toLocaleString()}\n`;
+            errorDetails.errors.slice(0, 5).forEach((error, index: number) => {
+              const lastAttempt = error.last_attempt ? new Date(error.last_attempt).toLocaleString() : 'Unknown';
+              message += `\n${index + 1}. ${error.name}\n   Error: ${error.error_message || 'Unknown error'}\n   Last attempt: ${lastAttempt}\n`;
             });
             
             if (errorDetails.errors.length > 5) {
@@ -798,7 +839,7 @@ export function Collections() {
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span>
-                      Last scan: {new Date(location.lastScan).toLocaleString()}
+                      Last scan: {location.lastScan ? new Date(location.lastScan).toLocaleString() : 'Never'}
                     </span>
                     {location.status === 'active' && location.pendingCount > 0 && (
                       <span className="text-blue-600 dark:text-blue-400 font-medium">

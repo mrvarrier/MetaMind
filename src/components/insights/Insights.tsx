@@ -3,6 +3,43 @@ import { motion } from "framer-motion";
 import { useSystemStore } from "../../stores/useSystemStore";
 import { safeInvoke, isTauriApp } from "../../utils/tauri";
 
+// Type definitions for insights data
+interface ProcessingSummary {
+  total_files?: number;
+  completed_files?: number;
+  success_rate?: number;
+}
+
+interface FileTypes {
+  documents?: number;
+  images?: number;
+  code?: number;
+  other?: number;
+}
+
+interface RecentActivity {
+  action?: string;
+  file?: string;
+  timestamp?: string;
+}
+
+interface CategoryData {
+  name?: string;
+  count?: number;
+}
+
+interface InsightsData {
+  processing_summary?: ProcessingSummary;
+  file_types?: FileTypes;
+  recent_activity?: RecentActivity[];
+  categories?: CategoryData[];
+}
+
+// Type guard for insights data
+function isInsightsData(obj: unknown): obj is InsightsData {
+  return typeof obj === 'object' && obj !== null;
+}
+
 export function Insights() {
   const { processingStatus, systemInfo } = useSystemStore();
   
@@ -64,10 +101,11 @@ export function Insights() {
 
       if (isTauriApp()) {
         console.log('Calling get_insights_data backend command');
-        const insightsData = await safeInvoke('get_insights_data');
-        console.log('Received insights data:', insightsData);
+        const response = await safeInvoke('get_insights_data');
+        console.log('Received insights data:', response);
         
-        if (insightsData) {
+        if (isInsightsData(response)) {
+          const insightsData = response;
           console.log('Processing insights data');
           
           // Safely extract data with fallbacks
@@ -424,7 +462,7 @@ export function Insights() {
               </div>
             ) : (
               <div className="space-y-5">
-                {insights.topCategories.map((category, index) => (
+                {insights.topCategories.map((category) => (
                   <div key={category.name} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className={`w-3 h-3 rounded-full ${colorClasses[category.color as keyof typeof colorClasses]}`} />
@@ -483,7 +521,7 @@ export function Insights() {
               </div>
             ) : (
               <div className="space-y-4 max-h-80 overflow-y-auto">
-                {insights.recentActivity.slice(0, 10).map((activity, index) => (
+                {insights.recentActivity.slice(0, 10).map((activity) => (
                   <div key={activity.id} className="flex items-start space-x-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                       activity.status === 'completed' ? 'bg-green-100 dark:bg-green-900/20' :

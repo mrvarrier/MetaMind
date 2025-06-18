@@ -186,7 +186,7 @@ export interface UIConfig {
   default_view: string;
 }
 
-export type Theme = 'Light' | 'Dark' | 'Auto';
+export type Theme = 'light' | 'dark' | 'auto';
 
 export interface PerformanceConfig {
   max_cpu_usage: number;
@@ -233,7 +233,7 @@ export interface SystemAnalysis {
   supports_background_processing: boolean;
 }
 
-export interface ProcessingStatus {
+export interface ProcessingStats {
   total_processed: number;
   queue_size: number;
   current_processing: number;
