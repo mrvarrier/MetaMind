@@ -5,7 +5,7 @@ import { useAppStore } from "../../stores/useAppStore";
 import { useSystemStore } from "../../stores/useSystemStore";
 import { SystemAnalysis } from "../../types";
 import { isTauriApp } from "../../utils/tauri";
-import { detectBrowserSystemInfo, formatSystemInfoForDisplay, BrowserSystemInfo } from "../../utils/browserDetection";
+import { detectBrowserSystemInfo, BrowserSystemInfo } from "../../utils/browserDetection";
 
 interface SystemAnalysisStepProps {
   onNext: () => void;
@@ -18,7 +18,7 @@ export function SystemAnalysisStep({ onNext, onBack }: SystemAnalysisStepProps) 
   const [analysisComplete, setAnalysisComplete] = useState(false);
   
   const { onboardingState, updateOnboardingState } = useAppStore();
-  const { systemInfo, getSystemCapabilities } = useSystemStore();
+  const { getSystemCapabilities } = useSystemStore();
   const [analysis, setAnalysis] = useState<SystemAnalysis | null>(null);
   const [browserSystemInfo, setBrowserSystemInfo] = useState<BrowserSystemInfo | null>(null);
 
