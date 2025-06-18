@@ -14,7 +14,7 @@ export function MainLayout() {
   const { theme, resetOnboarding } = useAppStore();
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
       {/* Sidebar */}
       <Sidebar 
         collapsed={sidebarCollapsed}
@@ -24,7 +24,7 @@ export function MainLayout() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-auto">
         {/* Custom Title Bar (for frameless window) */}
         <div 
           className="h-8 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700 flex items-center justify-center"

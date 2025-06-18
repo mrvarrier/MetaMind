@@ -584,7 +584,7 @@ export function Collections() {
   };
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
+    <div className="p-6 min-h-full overflow-auto">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

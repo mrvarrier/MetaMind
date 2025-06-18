@@ -78,7 +78,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen overflow-auto bg-gray-50 dark:bg-gray-900">
         <AnimatePresence mode="wait">
           {!isOnboardingComplete ? (
             <motion.div

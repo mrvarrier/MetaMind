@@ -237,8 +237,8 @@ export function Insights() {
   };
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto">
+    <div className="p-6 min-h-full overflow-auto">
+      <div className="max-w-6xl mx-auto min-w-fit">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

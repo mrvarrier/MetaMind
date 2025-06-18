@@ -335,7 +335,7 @@ export function Settings() {
   };
 
   return (
-    <div className="p-6 h-full overflow-y-auto">
+    <div className="p-6 min-h-full overflow-auto">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
