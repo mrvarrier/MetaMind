@@ -516,6 +516,26 @@ export function Collections() {
     }
   };
 
+  const reprocessErrors = async () => {
+    try {
+      setError(null);
+      
+      if (isTauriApp()) {
+        console.log('Reprocessing error files...');
+        await safeInvoke('reprocess_error_files');
+        alert('Started reprocessing error files. Check progress in a few moments.');
+        
+        // Refresh the data after a short delay
+        setTimeout(() => {
+          loadMonitoredLocations();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to reprocess error files:', error);
+      setError(`Failed to reprocess error files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'text-green-600 dark:text-green-400';
@@ -715,12 +735,20 @@ export function Collections() {
                           🔄 Rescan
                         </button>
                         {location.status === 'error' && (
-                          <button
-                            onClick={() => showErrorDetails(location.path)}
-                            className="w-full px-3 py-2 text-sm text-left text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                          >
-                            ⚠️ View Error
-                          </button>
+                          <>
+                            <button
+                              onClick={() => showErrorDetails(location.path)}
+                              className="w-full px-3 py-2 text-sm text-left text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                            >
+                              ⚠️ View Error
+                            </button>
+                            <button
+                              onClick={() => reprocessErrors()}
+                              className="w-full px-3 py-2 text-sm text-left text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            >
+                              🔄 Retry Errors
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => removeLocation(location.id)}

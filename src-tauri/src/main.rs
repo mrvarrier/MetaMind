@@ -358,6 +358,40 @@ async fn process_single_file(path: String, state: State<'_, AppState>) -> Result
 
 // Database maintenance commands
 #[tauri::command]
+async fn reprocess_error_files(state: State<'_, AppState>) -> Result<(), String> {
+    tracing::info!("Reprocessing all error files with updated logic");
+    
+    // Get all files with error status
+    let error_files = match state.database.get_files_by_status("error").await {
+        Ok(files) => files,
+        Err(e) => {
+            tracing::error!("Failed to get error files: {}", e);
+            return Err(format!("Failed to get error files: {}", e));
+        }
+    };
+    
+    let error_files_count = error_files.len();
+    tracing::info!("Found {} error files to reprocess", error_files_count);
+    
+    // Reset their status to pending and add them back to the queue
+    for file in error_files {
+        // Reset status to pending
+        if let Err(e) = state.database.update_file_status(&file.id, "pending", None).await {
+            tracing::error!("Failed to reset status for file {}: {}", file.path, e);
+            continue;
+        }
+        
+        // Add back to processing queue
+        if let Err(e) = state.processing_queue.lock().await.add_job(&file, crate::processing_queue::JobPriority::High).await {
+            tracing::error!("Failed to add file to queue {}: {}", file.path, e);
+        }
+    }
+    
+    tracing::info!("Reprocessing initiated for {} files", error_files_count);
+    Ok(())
+}
+
+#[tauri::command]
 async fn reset_database(_state: State<'_, AppState>) -> Result<(), String> {
     tracing::warn!("Resetting database due to corruption or user request");
     
@@ -735,7 +769,8 @@ async fn main() {
             remove_file_from_collection,
             get_files_in_collection,
             get_location_stats,
-            get_file_errors
+            get_file_errors,
+            reprocess_error_files
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");
