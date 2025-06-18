@@ -7,6 +7,7 @@ import { useSystemStore } from "./stores/useSystemStore";
 import { useSearchStore } from "./stores/useSearchStore";
 import { LoadingScreen } from "./components/common/LoadingScreen";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { useTheme } from "./hooks/useTheme";
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +25,9 @@ function App() {
   } = useSystemStore();
   
   const { init: initializeSearch } = useSearchStore();
+
+  // Initialize theme system
+  useTheme();
 
   useEffect(() => {
     const initialize = async () => {

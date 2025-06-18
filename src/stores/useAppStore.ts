@@ -155,21 +155,8 @@ export const useAppStore = create<AppState>()(
       setTheme: (theme: 'light' | 'dark' | 'auto') => {
         set({ theme });
         
-        // Apply theme to document
-        const root = document.documentElement;
-        if (theme === 'dark') {
-          root.classList.add('dark');
-        } else if (theme === 'light') {
-          root.classList.remove('dark');
-        } else {
-          // Auto mode - check system preference
-          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (prefersDark) {
-            root.classList.add('dark');
-          } else {
-            root.classList.remove('dark');
-          }
-        }
+        // Theme application is now handled by the useTheme hook
+        // This ensures proper system theme detection and persistence
       },
 
       setError: (error: string | null) => {
