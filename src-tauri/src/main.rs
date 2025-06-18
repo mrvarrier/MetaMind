@@ -6,6 +6,7 @@ use tauri::State;
 use tokio::sync::{RwLock, Mutex};
 use serde_json;
 use sysinfo::{System, SystemExt, CpuExt, DiskExt};
+use sqlx::Row;
 
 mod database;
 mod file_monitor;
@@ -636,6 +637,38 @@ async fn get_location_stats(
 }
 
 #[tauri::command]
+async fn get_insights_data(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Getting insights data - START");
+    
+    // First test basic database connectivity
+    match sqlx::query("SELECT COUNT(*) as count FROM files")
+        .fetch_one(&state.database.pool)
+        .await 
+    {
+        Ok(row) => {
+            let count: i64 = row.get("count");
+            tracing::info!("Database connectivity test passed, found {} files", count);
+        }
+        Err(e) => {
+            tracing::error!("Database connectivity test failed: {}", e);
+            return Err(format!("Database connection failed: {}", e));
+        }
+    }
+    
+    match state.database.get_insights_data().await {
+        Ok(insights) => {
+            tracing::info!("Retrieved insights data successfully");
+            tracing::debug!("Insights data: {:?}", insights);
+            Ok(insights)
+        }
+        Err(e) => {
+            tracing::error!("Failed to get insights data: {}", e);
+            Err(format!("Failed to get insights data: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
 async fn get_file_errors(
     path: String,
     state: State<'_, AppState>
@@ -770,6 +803,7 @@ async fn main() {
             get_files_in_collection,
             get_location_stats,
             get_file_errors,
+            get_insights_data,
             reprocess_error_files
         ])
         .setup(|_app| {

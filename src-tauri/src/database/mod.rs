@@ -6,7 +6,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone)]
 pub struct Database {
-    pool: SqlitePool,
+    pub pool: SqlitePool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -441,6 +441,208 @@ impl Database {
             "errors": stats.get::<i64, _>("errors"),
             "average_processing_time_ms": 1500.0,
             "last_processed_at": Utc::now().to_rfc3339()
+        }))
+    }
+
+    pub async fn get_insights_data(&self) -> Result<serde_json::Value> {
+        tracing::info!("Starting insights data collection");
+        
+        // Start with a very simple query to test basic functionality
+        let total_files_result = match sqlx::query("SELECT COUNT(*) as total FROM files")
+            .fetch_one(&self.pool)
+            .await {
+                Ok(row) => {
+                    let total: i64 = row.get("total");
+                    tracing::info!("Total files query successful: {}", total);
+                    total
+                }
+                Err(e) => {
+                    tracing::error!("Total files query failed: {}", e);
+                    return Err(anyhow::anyhow!("Failed to get total files: {}", e));
+                }
+            };
+        
+        // Get file type statistics
+        let file_types = match sqlx::query(
+            r#"
+            SELECT 
+                CASE 
+                    WHEN extension IN ('pdf', 'doc', 'docx', 'txt', 'md', 'rtf') THEN 'documents'
+                    WHEN extension IN ('jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'tiff', 'webp') THEN 'images'
+                    WHEN extension IN ('js', 'ts', 'py', 'rs', 'java', 'cpp', 'c', 'h', 'css', 'html', 'xml', 'json') THEN 'code'
+                    ELSE 'other'
+                END as category,
+                COUNT(*) as count
+            FROM files 
+            WHERE processing_status = 'completed'
+            GROUP BY category
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await {
+            Ok(result) => {
+                tracing::info!("File types query successful, got {} rows", result.len());
+                result
+            }
+            Err(e) => {
+                tracing::error!("File types query failed: {}", e);
+                return Err(anyhow::anyhow!("Failed to get file types: {}", e));
+            }
+        };
+
+        let mut categories = std::collections::HashMap::new();
+        let mut total_files = 0i64;
+        
+        for row in file_types {
+            let category: String = row.get("category");
+            let count: i64 = row.get("count");
+            categories.insert(category, count);
+            total_files += count;
+        }
+
+        // Calculate percentages and create category data
+        let documents_count = categories.get("documents").unwrap_or(&0);
+        let images_count = categories.get("images").unwrap_or(&0);
+        let code_count = categories.get("code").unwrap_or(&0);
+        let other_count = categories.get("other").unwrap_or(&0);
+
+        let calc_percentage = |count: i64| -> f64 {
+            if total_files > 0 { (count as f64 / total_files as f64) * 100.0 } else { 0.0 }
+        };
+
+        // Get recent processing activity (last 20 activities)
+        let recent_activity = match sqlx::query(
+            r#"
+            SELECT 
+                name,
+                processing_status,
+                modified_at,
+                error_message,
+                path
+            FROM files 
+            ORDER BY modified_at DESC 
+            LIMIT 20
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await {
+            Ok(result) => {
+                tracing::debug!("Recent activity query successful, got {} rows", result.len());
+                result
+            }
+            Err(e) => {
+                tracing::error!("Recent activity query failed: {}", e);
+                return Err(anyhow::anyhow!("Failed to get recent activity: {}", e));
+            }
+        };
+
+        let activity_items: Vec<serde_json::Value> = recent_activity.iter().enumerate().filter_map(|(i, row)| {
+            // Use safe row access to avoid panics
+            let name: Option<String> = row.try_get("name").ok();
+            let status: Option<String> = row.try_get("processing_status").ok();
+            let modified_at: Option<String> = row.try_get("modified_at").ok();
+            let error_message: Option<String> = row.try_get("error_message").ok().flatten();
+            
+            // Skip rows with missing essential data
+            let name = name?;
+            let status = status?;
+            let modified_at = modified_at?;
+            
+            let (message, activity_status) = match status.as_str() {
+                "completed" => (format!("✅ Successfully processed {}", name), "completed"),
+                "processing" => (format!("🔄 Currently processing {}", name), "in_progress"),
+                "error" => (format!("❌ Failed to process {} - {}", name, error_message.unwrap_or("Unknown error".to_string())), "error"),
+                "pending" => (format!("⏳ Queued for processing: {}", name), "pending"),
+                _ => (format!("📄 File activity: {}", name), "unknown")
+            };
+
+            Some(serde_json::json!({
+                "id": format!("activity_{}", i),
+                "type": status,
+                "message": message,
+                "timestamp": modified_at,
+                "status": activity_status
+            }))
+        }).collect();
+
+        // Get overall processing statistics
+        let processing_stats = match sqlx::query(
+            r#"
+            SELECT 
+                COUNT(*) as total_files,
+                COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_files,
+                COUNT(CASE WHEN processing_status = 'error' THEN 1 END) as error_files,
+                COUNT(CASE WHEN processing_status = 'pending' THEN 1 END) as pending_files,
+                COUNT(CASE WHEN processing_status = 'processing' THEN 1 END) as processing_files
+            FROM files
+            "#
+        )
+        .fetch_one(&self.pool)
+        .await {
+            Ok(result) => {
+                tracing::debug!("Processing stats query successful");
+                result
+            }
+            Err(e) => {
+                tracing::error!("Processing stats query failed: {}", e);
+                return Err(anyhow::anyhow!("Failed to get processing stats: {}", e));
+            }
+        };
+
+        let total_db_files: i64 = processing_stats.try_get("total_files").unwrap_or(0);
+        let completed_files: i64 = processing_stats.try_get("completed_files").unwrap_or(0);
+        let error_files: i64 = processing_stats.try_get("error_files").unwrap_or(0);
+
+        // Calculate success rate
+        let success_rate = if total_db_files > 0 {
+            ((completed_files as f64 / total_db_files as f64) * 100.0).round()
+        } else {
+            0.0
+        };
+
+        tracing::debug!("Insights data collection completed successfully");
+
+        Ok(serde_json::json!({
+            "file_types": {
+                "documents": documents_count,
+                "images": images_count,
+                "code": code_count,
+                "other": other_count,
+                "total": total_files
+            },
+            "categories": [
+                {
+                    "name": "Documents",
+                    "count": documents_count,
+                    "percentage": calc_percentage(*documents_count),
+                    "color": "blue"
+                },
+                {
+                    "name": "Images", 
+                    "count": images_count,
+                    "percentage": calc_percentage(*images_count),
+                    "color": "green"
+                },
+                {
+                    "name": "Code",
+                    "count": code_count,
+                    "percentage": calc_percentage(*code_count),
+                    "color": "purple"
+                },
+                {
+                    "name": "Other",
+                    "count": other_count,
+                    "percentage": calc_percentage(*other_count),
+                    "color": "gray"
+                }
+            ],
+            "recent_activity": activity_items,
+            "processing_summary": {
+                "total_files": total_db_files,
+                "completed_files": completed_files,
+                "error_files": error_files,
+                "success_rate": success_rate
+            }
         }))
     }
 
