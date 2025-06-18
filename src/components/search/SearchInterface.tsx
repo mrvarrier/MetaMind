@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../common/Button";
+import { Logo } from "../common/Logo";
 import { useSearchStore } from "../../stores/useSearchStore";
 import { SearchResults } from "./SearchResults";
 import { SearchFilters } from "./SearchFilters";
@@ -77,6 +78,18 @@ export function SearchInterface() {
       {/* Search Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6">
         <div className="max-w-4xl mx-auto">
+          {/* Header with Logo */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <Logo size="lg" variant="icon" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Search</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Search through your files using natural language
+                </p>
+              </div>
+            </div>
+          </div>
           {/* Main Search Bar */}
           <div className="relative">
             <div className="flex items-center space-x-4">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Logo } from "../common/Logo";
 import { useSystemStore } from "../../stores/useSystemStore";
 import { safeInvoke, isTauriApp } from "../../utils/tauri";
 
@@ -284,11 +285,14 @@ export function Insights() {
       <div className="max-w-6xl mx-auto min-w-fit">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Insights</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              AI-powered analysis and insights about your files
-            </p>
+          <div className="flex items-center space-x-4">
+            <Logo size="lg" variant="icon" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Insights</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                AI-powered analysis and insights about your files
+              </p>
+            </div>
           </div>
           
           <div className="flex items-center space-x-3">

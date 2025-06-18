@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../common/Button";
+import { Logo } from "../common/Logo";
 import { useAppStore } from "../../stores/useAppStore";
 import { safeInvoke, isTauriApp } from "../../utils/tauri";
 import { open } from "@tauri-apps/api/dialog";
@@ -788,11 +789,14 @@ export function Collections() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Collections</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Organize your files and folders into knowledge bases for better management
-            </p>
+          <div className="flex items-center space-x-4">
+            <Logo size="lg" variant="icon" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Collections</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                Organize your files and folders into knowledge bases for better management
+              </p>
+            </div>
           </div>
           
           <div className="flex items-center space-x-3">
