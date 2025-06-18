@@ -113,11 +113,11 @@ export function Insights() {
           const completedFiles = Number(insightsData.processing_summary?.completed_files) || 0;
           const successRate = Number(insightsData.processing_summary?.success_rate) || 0;
           
-          const fileTypes = insightsData.file_types || {
-            documents: 0,
-            images: 0, 
-            code: 0,
-            other: 0
+          const fileTypes = {
+            documents: insightsData.file_types?.documents || 0,
+            images: insightsData.file_types?.images || 0,
+            code: insightsData.file_types?.code || 0,
+            other: insightsData.file_types?.other || 0
           };
           
           const recentActivity = Array.isArray(insightsData.recent_activity) 
@@ -125,7 +125,12 @@ export function Insights() {
             : [];
             
           const categories = Array.isArray(insightsData.categories)
-            ? insightsData.categories
+            ? insightsData.categories.map(cat => ({
+                name: cat.name || "Unknown",
+                count: cat.count || 0,
+                percentage: 0,
+                color: "blue"
+              }))
             : [
                 { name: "Documents", count: 0, percentage: 0, color: "blue" },
                 { name: "Images", count: 0, percentage: 0, color: "green" },

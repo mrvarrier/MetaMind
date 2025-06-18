@@ -55,7 +55,8 @@ export function CompletionStep({ onComplete, onBack }: CompletionStepProps) {
         } else if (index === 2) {
           // Process selected folders with file processing service
           try {
-            await fileProcessingService.initializeFromOnboarding(onboardingState.selectedFolders || []);
+            const folderPaths = (onboardingState.selectedFolders || []).map(folder => folder.path);
+            await fileProcessingService.initializeFromOnboarding(folderPaths);
             console.log('File processing initialized for folders:', onboardingState.selectedFolders);
           } catch (error) {
             console.error('File processing initialization failed:', error);

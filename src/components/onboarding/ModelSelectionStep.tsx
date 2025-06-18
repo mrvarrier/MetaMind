@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
-import { SystemAnalysis } from "../../types";
 import { invoke } from "@tauri-apps/api/tauri";
 import { isTauriApp } from "../../utils/tauri";
 

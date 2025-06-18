@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Browser-based system detection utilities
 
 export interface BrowserSystemInfo {

@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { open } from "@tauri-apps/api/dialog";
-import { fileProcessingService } from "../../services/fileProcessingService";
 import { isTauriApp } from "../../utils/tauri";
 
 interface FolderSelectionStepProps {

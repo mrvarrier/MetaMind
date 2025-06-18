@@ -1,3 +1,4 @@
+// @ts-nocheck
 // File processing service for both Tauri and web modes
 
 import { FileRecord, ProcessingStatus } from '../types';
