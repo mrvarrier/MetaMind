@@ -39,8 +39,7 @@ export function Settings() {
   const handleSaveSettings = async () => {
     setIsLoading(true);
     try {
-      // Update theme immediately
-      setTheme(settings.theme);
+      // Theme is updated immediately on change, no need to set it again here
       
       // Save other settings to backend
       await invoke("update_config", {
@@ -85,13 +84,21 @@ export function Settings() {
         </label>
         <select
           value={settings.theme}
-          onChange={(e) => setSettings({ ...settings, theme: e.target.value as any })}
+          onChange={(e) => {
+            const newTheme = e.target.value as 'light' | 'dark' | 'auto';
+            setSettings({ ...settings, theme: newTheme });
+            // Apply theme immediately for instant feedback
+            setTheme(newTheme);
+          }}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-apple bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          <option value="auto">System</option>
+          <option value="light">☀️ Light</option>
+          <option value="dark">🌙 Dark</option>
+          <option value="auto">🖥️ System</option>
         </select>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          System theme automatically matches your device's appearance setting
+        </p>
       </div>
 
       <div className="flex items-center justify-between">
