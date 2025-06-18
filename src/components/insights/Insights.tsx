@@ -171,20 +171,18 @@ export function Insights() {
   }, []);
 
   useEffect(() => {
-    // Update insights when processing status changes
+    // Update only live processing metrics when processing status changes
+    // Do NOT overwrite backend data (totalFiles, processedFiles) to prevent reset to 0
     if (processingStatus) {
-      const totalFiles = processingStatus.total_processed + processingStatus.queue_size;
-      const successRate = totalFiles > 0 ? ((processingStatus.total_processed - processingStatus.errors) / totalFiles) * 100 : 0;
       const avgSpeed = processingStatus.average_processing_time_ms > 0 ? 1000 / processingStatus.average_processing_time_ms : 0;
       
       setInsights(prev => ({
         ...prev,
-        processedFiles: processingStatus.total_processed,
-        totalFiles,
+        // Only update real-time processing stats, preserve backend totals
         processingStats: {
           avgProcessingSpeed: Math.round(avgSpeed * 10) / 10, // files per second
           totalProcessingTime: processingStatus.average_processing_time_ms,
-          successRate: Math.round(successRate),
+          successRate: prev.processingStats.successRate, // Keep backend success rate
           memoryUsage: Math.round((systemInfo?.memory_usage || 0)),
           activeWorkers: processingStatus.current_processing
         }
