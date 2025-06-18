@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMind - AI-Powered File Intelligence System</title>
+    <meta name="description" content="Transform your files into intelligent, searchable knowledge with MetaMind's AI-powered file analysis and natural language search capabilities.">
+    <meta name="keywords" content="AI, file management, search, artificial intelligence, document analysis, productivity">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="MetaMind - AI-Powered File Intelligence">
+    <meta property="og:description" content="Transform your files into intelligent, searchable knowledge with AI-powered analysis and natural language search.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://metamind.dev">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+    <link rel="icon" type="image/png" href="assets/icon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="assets/icon-128x128.png" sizes="128x128">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                </div>
+                <span class="logo-text">MetaMind</span>
+            </div>
+            
+            <div class="nav-menu" id="nav-menu">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#how-it-works" class="nav-link">How It Works</a>
+                <a href="#benefits" class="nav-link">Benefits</a>
+                <a href="#download" class="nav-link">Download</a>
+            </div>
+            
+            <div class="nav-actions">
+                <a href="#download" class="btn btn-primary">Download</a>
+                <a href="https://github.com/mrvarrier/MetaMind" class="btn btn-secondary" target="_blank">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+                <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-background">
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+            <div class="gradient-orb orb-3"></div>
+        </div>
+        
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="badge-icon">✨</span>
+                    <span>AI-Powered File Intelligence</span>
+                </div>
+                
+                <h1 class="hero-title">
+                    Transform Your Files Into
+                    <span class="gradient-text">Intelligent Knowledge</span>
+                </h1>
+                
+                <p class="hero-description">
+                    MetaMind uses advanced AI to automatically analyze, categorize, and make your files searchable with natural language. Find anything instantly, understand your data deeply.
+                </p>
+                
+                <div class="hero-actions">
+                    <a href="#download" class="btn btn-primary btn-large">
+                        <span>Download Free</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                        </svg>
+                    </a>
+                </div>
+                
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-number">10K+</div>
+                        <div class="stat-label">Files Analyzed</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">95%</div>
+                        <div class="stat-label">Accuracy Rate</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">5min</div>
+                        <div class="stat-label">Setup Time</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="hero-visual">
+                <div class="app-preview">
+                    <div class="app-window">
+                        <div class="window-header">
+                            <div class="window-controls">
+                                <span class="control red"></span>
+                                <span class="control yellow"></span>
+                                <span class="control green"></span>
+                            </div>
+                            <div class="window-title">MetaMind</div>
+                        </div>
+                        <div class="window-content">
+                            <div class="search-demo">
+                                <div class="search-bar">
+                                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <circle cx="11" cy="11" r="8"/>
+                                        <path d="m21 21-4.35-4.35"/>
+                                    </svg>
+                                    <span class="typing-text" id="typing-text">Find all photos from last vacation...</span>
+                                </div>
+                                <div class="search-results">
+                                    <div class="result-item">
+                                        <div class="result-icon">📸</div>
+                                        <div class="result-content">
+                                            <div class="result-title">Beach Photos 2024</div>
+                                            <div class="result-path">~/Pictures/Vacation/</div>
+                                        </div>
+                                    </div>
+                                    <div class="result-item">
+                                        <div class="result-icon">🏖️</div>
+                                        <div class="result-content">
+                                            <div class="result-title">Hawaii Trip Memories</div>
+                                            <div class="result-path">~/Documents/Travel/</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="floating-cards">
+                    <div class="floating-card card-1">
+                        <div class="card-icon">🔍</div>
+                        <div class="card-text">Smart Search</div>
+                    </div>
+                    <div class="floating-card card-2">
+                        <div class="card-icon">🤖</div>
+                        <div class="card-text">AI Analysis</div>
+                    </div>
+                    <div class="floating-card card-3">
+                        <div class="card-icon">⚡</div>
+                        <div class="card-text">Instant Results</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Powerful Features</h2>
+                <p class="section-description">
+                    Discover how MetaMind revolutionizes the way you interact with your files
+                </p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Natural Language Search</h3>
+                    <p class="feature-description">
+                        Search your files using everyday language. Ask "find my tax documents from 2023" and get instant, accurate results.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">AI-Powered Analysis</h3>
+                    <p class="feature-description">
+                        Advanced machine learning algorithms automatically categorize and understand your content for smarter organization.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Privacy First</h3>
+                    <p class="feature-description">
+                        Your data stays completely local on your device. No cloud processing, no data collection, complete privacy.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Lightning Fast</h3>
+                    <p class="feature-description">
+                        Optimized algorithms ensure instant search results, even across thousands of files and documents.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14,2 14,8 20,8"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Universal File Support</h3>
+                    <p class="feature-description">
+                        Works with all file types - documents, images, videos, code, and more. One tool for everything.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Smart Collections</h3>
+                    <p class="feature-description">
+                        Organize files into intelligent collections that automatically categorize new content based on patterns.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-description">
+                    Get up and running in minutes with our simple 3-step process
+                </p>
+            </div>
+            
+            <div class="how-it-works-content">
+                <div class="timeline">
+                    
+                    <div class="step-card">
+                        <div class="step-icon">
+                            <div class="icon-circle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                                </svg>
+                            </div>
+                            <div class="step-number">1</div>
+                        </div>
+                        <div class="step-content">
+                            <h3 class="step-title">Download & Install</h3>
+                            <p class="step-description">
+                                Download MetaMind for your platform and run the installer. The setup wizard will guide you through the initial configuration in just a few clicks.
+                            </p>
+                            <div class="step-features">
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    Cross-platform support
+                                </div>
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    Quick 2-minute setup
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-card">
+                        <div class="step-icon">
+                            <div class="icon-circle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                </svg>
+                            </div>
+                            <div class="step-number">2</div>
+                        </div>
+                        <div class="step-content">
+                            <h3 class="step-title">AI Analysis</h3>
+                            <p class="step-description">
+                                Choose your folders and let our AI analyze your files. MetaMind creates intelligent metadata, extracts content, and builds searchable indexes automatically.
+                            </p>
+                            <div class="step-features">
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    Runs in background
+                                </div>
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    All data stays local
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-card">
+                        <div class="step-icon">
+                            <div class="icon-circle">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <circle cx="11" cy="11" r="8"/>
+                                    <path d="m21 21-4.35-4.35"/>
+                                </svg>
+                            </div>
+                            <div class="step-number">3</div>
+                        </div>
+                        <div class="step-content">
+                            <h3 class="step-title">Search & Discover</h3>
+                            <p class="step-description">
+                                Start searching with natural language. Ask questions like "find my tax documents from 2024" or "photos from vacation" and get instant, accurate results.
+                            </p>
+                            <div class="step-features">
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    Natural language queries
+                                </div>
+                                <div class="feature-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <polyline points="20,6 9,17 4,12"/>
+                                    </svg>
+                                    Instant results
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="benefits" id="benefits">
+        <div class="container">
+            <div class="benefits-content">
+                <div class="benefits-text">
+                    <h2 class="section-title">Why Choose MetaMind?</h2>
+                    <div class="benefit-list">
+                        <div class="benefit-item">
+                            <div class="benefit-icon">⚡</div>
+                            <div class="benefit-text">
+                                <h4>10x Faster File Discovery</h4>
+                                <p>Find files in seconds instead of minutes with intelligent search</p>
+                            </div>
+                        </div>
+                        
+                        <div class="benefit-item">
+                            <div class="benefit-icon">🧠</div>
+                            <div class="benefit-text">
+                                <h4>AI-Powered Insights</h4>
+                                <p>Discover patterns and connections in your data you never knew existed</p>
+                            </div>
+                        </div>
+                        
+                        <div class="benefit-item">
+                            <div class="benefit-icon">🔒</div>
+                            <div class="benefit-text">
+                                <h4>Complete Privacy</h4>
+                                <p>Everything runs locally - your data never leaves your computer</p>
+                            </div>
+                        </div>
+                        
+                        <div class="benefit-item">
+                            <div class="benefit-icon">🎯</div>
+                            <div class="benefit-text">
+                                <h4>Precision Search</h4>
+                                <p>Natural language processing understands context and intent</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="benefits-visual">
+                    <div class="dashboard-preview">
+                        <div class="dashboard-header">
+                            <div class="dashboard-title">MetaMind Dashboard</div>
+                            <div class="dashboard-stats">
+                                <div class="stat-pill">2,847 files indexed</div>
+                                <div class="stat-pill">95% accuracy</div>
+                            </div>
+                        </div>
+                        <div class="dashboard-content">
+                            <div class="insight-card">
+                                <div class="insight-icon">📊</div>
+                                <div class="insight-text">Most accessed: Project documents</div>
+                            </div>
+                            <div class="insight-card">
+                                <div class="insight-icon">🔍</div>
+                                <div class="insight-text">Quick search saved 2.3 hours this week</div>
+                            </div>
+                            <div class="insight-card">
+                                <div class="insight-icon">💡</div>
+                                <div class="insight-text">Suggested: Organize photos by date</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- System Requirements Section -->
+    <section class="system-requirements" id="system-requirements">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">System Requirements</h2>
+                <p class="section-description">
+                    Ensure your system meets the minimum requirements for optimal performance
+                </p>
+            </div>
+            
+            <div class="requirements-grid">
+                <div class="requirement-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">💻</div>
+                        <h3 class="platform-name">macOS</h3>
+                    </div>
+                    <div class="requirement-list">
+                        <div class="requirement-item">
+                            <span class="requirement-label">Operating System:</span>
+                            <span class="requirement-value">macOS 10.15 (Catalina) or later</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Architecture:</span>
+                            <span class="requirement-value">Intel x64 or Apple Silicon (M1/M2/M3)</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Memory:</span>
+                            <span class="requirement-value">4 GB RAM minimum, 8 GB recommended</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Storage:</span>
+                            <span class="requirement-value">100 MB free disk space</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="requirement-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">🪟</div>
+                        <h3 class="platform-name">Windows</h3>
+                    </div>
+                    <div class="requirement-list">
+                        <div class="requirement-item">
+                            <span class="requirement-label">Operating System:</span>
+                            <span class="requirement-value">Windows 10 version 1809 or later</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Architecture:</span>
+                            <span class="requirement-value">x64 (64-bit)</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Memory:</span>
+                            <span class="requirement-value">4 GB RAM minimum, 8 GB recommended</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Storage:</span>
+                            <span class="requirement-value">100 MB free disk space</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="requirement-card">
+                    <div class="platform-header">
+                        <div class="platform-icon">🐧</div>
+                        <h3 class="platform-name">Linux</h3>
+                    </div>
+                    <div class="requirement-list">
+                        <div class="requirement-item">
+                            <span class="requirement-label">Distribution:</span>
+                            <span class="requirement-value">Ubuntu 20.04+, Debian 11+, or equivalent</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Architecture:</span>
+                            <span class="requirement-value">x64 (64-bit)</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Memory:</span>
+                            <span class="requirement-value">4 GB RAM minimum, 8 GB recommended</span>
+                        </div>
+                        <div class="requirement-item">
+                            <span class="requirement-label">Storage:</span>
+                            <span class="requirement-value">100 MB free disk space</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="additional-requirements">
+                <h3 class="additional-title">Additional Requirements</h3>
+                <div class="additional-list">
+                    <div class="additional-item">
+                        <div class="additional-icon">🌐</div>
+                        <div class="additional-text">
+                            <strong>Internet Connection:</strong> Required for initial setup and updates (optional for offline use)
+                        </div>
+                    </div>
+                    <div class="additional-item">
+                        <div class="additional-icon">🔧</div>
+                        <div class="additional-text">
+                            <strong>Permissions:</strong> File system access permissions for indexing your selected folders
+                        </div>
+                    </div>
+                    <div class="additional-item">
+                        <div class="additional-icon">⚡</div>
+                        <div class="additional-text">
+                            <strong>Performance:</strong> For optimal AI processing, SSD storage and modern CPU recommended
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section class="download" id="download">
+        <div class="container">
+            <div class="download-content">
+                <div class="download-header">
+                    <h2 class="section-title">Ready to Transform Your Files?</h2>
+                    <p class="section-description">
+                        Join thousands of users who have revolutionized their file management with MetaMind
+                    </p>
+                </div>
+                
+                <div class="download-options">
+                    <div class="download-card featured">
+                        <div class="download-badge">Recommended</div>
+                        <div class="platform-icon">💻</div>
+                        <h3 class="platform-name">macOS</h3>
+                        <p class="platform-requirements">macOS 10.15 or later</p>
+                        <div class="download-size">42.3 MB</div>
+                        <a href="#" class="btn btn-primary btn-large download-btn">
+                            <span>Download for Mac</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                            </svg>
+                        </a>
+                    </div>
+                    
+                    <div class="download-card">
+                        <div class="platform-icon">🪟</div>
+                        <h3 class="platform-name">Windows</h3>
+                        <p class="platform-requirements">Windows 10 or later</p>
+                        <div class="download-size">38.7 MB</div>
+                        <a href="#" class="btn btn-secondary btn-large download-btn">
+                            <span>Download for Windows</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                            </svg>
+                        </a>
+                    </div>
+                    
+                    <div class="download-card">
+                        <div class="platform-icon">🐧</div>
+                        <h3 class="platform-name">Linux</h3>
+                        <p class="platform-requirements">Ubuntu 20.04+ / Debian 11+</p>
+                        <div class="download-size">35.2 MB</div>
+                        <a href="#" class="btn btn-secondary btn-large download-btn">
+                            <span>Download for Linux</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="download-footer">
+                    <p class="download-note">
+                        Free forever • No registration required • Open source
+                    </p>
+                    <div class="download-links">
+                        <a href="https://github.com/mrvarrier/MetaMind" class="link" target="_blank">View on GitHub</a>
+                        <a href="https://github.com/mrvarrier/MetaMind/releases" class="link" target="_blank">Release Notes</a>
+                        <a href="#system-requirements" class="link">System Requirements</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <div class="logo-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                        </div>
+                        <span class="logo-text">MetaMind</span>
+                    </div>
+                    <p class="footer-description">
+                        AI-powered file intelligence that transforms how you interact with your digital content.
+                    </p>
+                </div>
+                
+                <div class="footer-links">
+                    <div class="link-group">
+                        <h4 class="link-title">Product</h4>
+                        <a href="#features" class="footer-link">Features</a>
+                        <a href="#download" class="footer-link">Download</a>
+                        <a href="#" class="footer-link">Documentation</a>
+                        <a href="#" class="footer-link">API</a>
+                    </div>
+                    
+                    <div class="link-group">
+                        <h4 class="link-title">Support</h4>
+                        <a href="#" class="footer-link">Help Center</a>
+                        <a href="#" class="footer-link">Community</a>
+                        <a href="#" class="footer-link">Contact</a>
+                        <a href="#" class="footer-link">Bug Reports</a>
+                    </div>
+                    
+                    <div class="link-group">
+                        <h4 class="link-title">Company</h4>
+                        <a href="#" class="footer-link">About</a>
+                        <a href="#" class="footer-link">Blog</a>
+                        <a href="#" class="footer-link">Privacy</a>
+                        <a href="#" class="footer-link">Terms</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p class="copyright">
+                    © 2025 MetaMind. All rights reserved.
+                </p>
+                <div class="social-links">
+                    <a href="https://github.com/mrvarrier/MetaMind" class="social-link" aria-label="GitHub" target="_blank">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>

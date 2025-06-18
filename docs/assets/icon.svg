@@ -1,0 +1,44 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3B82F6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1D4ED8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background with rounded corners -->
+  <rect width="128" height="128" rx="24" ry="24" fill="url(#grad)"/>
+  
+  <!-- Inner white glow background -->
+  <rect x="16" y="16" width="96" height="96" rx="16" ry="16" fill="white" opacity="0.1"/>
+  
+  <!-- Lightbulb Icon -->
+  <!-- Bulb body -->
+  <path d="M64 28c-13.8 0-25 11.2-25 25 0 8.3 4.1 15.6 10.4 20.1 1.5 1.1 2.4 2.8 2.4 4.7V84c0 2.2 1.8 4 4 4h16c2.2 0 4-1.8 4-4v-6.2c0-1.9 0.9-3.6 2.4-4.7C84.9 68.6 89 61.3 89 53c0-13.8-11.2-25-25-25z" 
+        fill="white" opacity="0.9"/>
+  
+  <!-- Base threads -->
+  <rect x="54" y="86" width="20" height="3" fill="white" opacity="0.8"/>
+  <rect x="54" y="91" width="20" height="3" fill="white" opacity="0.8"/>
+  
+  <!-- Light rays -->
+  <g stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.7">
+    <!-- Top ray -->
+    <line x1="64" y1="16" x2="64" y2="22"/>
+    <!-- Top-right ray -->
+    <line x1="86.5" y1="25.5" x2="82.2" y2="29.8"/>
+    <!-- Right ray -->
+    <line x1="98" y1="48" x2="92" y2="48"/>
+    <!-- Bottom-right ray -->
+    <line x1="86.5" y1="70.5" x2="82.2" y2="66.2"/>
+    <!-- Top-left ray -->
+    <line x1="41.5" y1="25.5" x2="45.8" y2="29.8"/>
+    <!-- Left ray -->
+    <line x1="30" y1="48" x2="36" y2="48"/>
+    <!-- Bottom-left ray -->
+    <line x1="41.5" y1="70.5" x2="45.8" y2="66.2"/>
+  </g>
+  
+  <!-- Highlight on bulb -->
+  <ellipse cx="56" cy="40" rx="4" ry="8" fill="white" opacity="0.4"/>
+</svg>
