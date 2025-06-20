@@ -39,6 +39,14 @@ sysinfo = "0.29"
 reqwest = { version = "0.11", features = ["json", "stream"] }
 futures-util = "0.3"
 
+# Security and encryption
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+keyring = "2.0"
+
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono", "json"] }
 
