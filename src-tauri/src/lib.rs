@@ -8,6 +8,7 @@ pub mod error_reporting;
 pub mod security;
 pub mod system_tray;
 pub mod notifications;
+pub mod plugin_system;
 
 pub use database::Database;
 pub use file_monitor::FileMonitor;
@@ -18,3 +19,4 @@ pub use error_reporting::ErrorReporter;
 pub use security::SecurityManager;
 pub use system_tray::SystemTrayManager;
 pub use notifications::NotificationManager;
+pub use plugin_system::PluginSystem;

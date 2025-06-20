@@ -1,0 +1,58 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "description": "Example plugin demonstrating MetaMind plugin capabilities",
+  "author": "MetaMind Team",
+  "license": "MIT",
+  "main": "index.js",
+  "hooks": [
+    {
+      "hook_type": "FileProcessed",
+      "function_name": "onFileProcessed",
+      "priority": 100,
+      "async_execution": true
+    },
+    {
+      "hook_type": "SearchStarted",
+      "function_name": "onSearchStarted",
+      "priority": 50,
+      "async_execution": false
+    }
+  ],
+  "permissions": [
+    "FileRead",
+    "FileAnalysis",
+    "NotificationSend",
+    "UIRender"
+  ],
+  "dependencies": [],
+  "ui_components": [
+    {
+      "name": "ExamplePanel",
+      "component_type": "Panel",
+      "placement": "RightSidebar",
+      "props": {
+        "title": "Example Plugin",
+        "collapsible": true
+      }
+    }
+  ],
+  "file_processors": [
+    {
+      "name": "ExampleTextProcessor",
+      "supported_extensions": [".txt", ".md"],
+      "mime_types": ["text/plain", "text/markdown"],
+      "processor_type": "ContentAnalyzer",
+      "priority": 10
+    }
+  ],
+  "ai_models": [],
+  "search_providers": [
+    {
+      "name": "ExampleSearchProvider",
+      "provider_type": "Local",
+      "capabilities": ["TextSearch", "MetadataSearch"],
+      "priority": 20
+    }
+  ]
+}
