@@ -47,6 +47,9 @@ sha2 = "0.10"
 rand = "0.8"
 keyring = "2.0"
 
+# Cloud sync dependencies
+async-trait = "0.1"
+
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono", "json"] }
 

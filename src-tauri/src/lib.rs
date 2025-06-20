@@ -9,6 +9,9 @@ pub mod security;
 pub mod system_tray;
 pub mod notifications;
 pub mod plugin_system;
+pub mod platform_optimizations;
+pub mod knowledge_base;
+pub mod cloud_sync;
 
 pub use database::Database;
 pub use file_monitor::FileMonitor;
@@ -20,3 +23,6 @@ pub use security::SecurityManager;
 pub use system_tray::SystemTrayManager;
 pub use notifications::NotificationManager;
 pub use plugin_system::PluginSystem;
+pub use platform_optimizations::PlatformOptimizer;
+pub use knowledge_base::KnowledgeBase;
+pub use cloud_sync::CloudSyncManager;
