@@ -392,22 +392,58 @@ impl Database {
 
     // Search operations
     pub async fn search_files(&self, query: &str, limit: i64, offset: i64) -> Result<Vec<FileRecord>> {
-        // Simple LIKE search instead of FTS for now
+        // Enhanced search with AI analysis prioritization
         let search_pattern = format!("%{}%", query);
         
         let rows = sqlx::query(
             r#"
             SELECT f.* FROM files f
-            WHERE f.name LIKE ? OR f.content LIKE ? OR f.ai_analysis LIKE ?
-            ORDER BY f.modified_at DESC
+            WHERE f.name LIKE ? OR f.content LIKE ? OR f.ai_analysis LIKE ? OR f.tags LIKE ?
+            ORDER BY 
+                CASE WHEN f.ai_analysis IS NOT NULL THEN 1 ELSE 2 END,
+                CASE WHEN f.processing_status = 'completed' THEN 1 ELSE 2 END,
+                f.modified_at DESC
             LIMIT ? OFFSET ?
             "#
         )
         .bind(&search_pattern)
         .bind(&search_pattern)
         .bind(&search_pattern)
+        .bind(&search_pattern)
         .bind(limit)
         .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut files = Vec::new();
+        for row in rows {
+            files.push(self.row_to_file_record(row)?);
+        }
+
+        Ok(files)
+    }
+
+    pub async fn search_files_with_embeddings(&self, query: &str, limit: i64) -> Result<Vec<FileRecord>> {
+        // Get files with embeddings for semantic search
+        let search_pattern = format!("%{}%", query);
+        
+        let rows = sqlx::query(
+            r#"
+            SELECT f.* FROM files f
+            WHERE f.embedding IS NOT NULL 
+            AND (f.name LIKE ? OR f.content LIKE ? OR f.ai_analysis LIKE ? OR f.tags LIKE ?)
+            ORDER BY 
+                CASE WHEN f.ai_analysis LIKE ? THEN 1 ELSE 2 END,
+                f.modified_at DESC
+            LIMIT ?
+            "#
+        )
+        .bind(&search_pattern)
+        .bind(&search_pattern)
+        .bind(&search_pattern)
+        .bind(&search_pattern)
+        .bind(&search_pattern)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await?;
 

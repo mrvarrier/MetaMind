@@ -295,8 +295,8 @@ async fn semantic_search(query: String, state: State<'_, AppState>) -> Result<se
     // For now, use enhanced regular search
     let start_time = std::time::Instant::now();
     
-    // Get all files with embeddings from database
-    let search_results = match state.database.search_files(&query, 50, 0).await {
+    // Get files with embeddings from database for semantic search
+    let search_results = match state.database.search_files_with_embeddings(&query, 50).await {
         Ok(files) => files,
         Err(e) => {
             tracing::error!("Semantic search failed: {}", e);
