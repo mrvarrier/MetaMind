@@ -53,6 +53,7 @@ struct EmbeddingResponse {
     embedding: Vec<f32>,
 }
 
+#[derive(Debug, Clone)]
 pub struct AIProcessor {
     client: Client,
     ollama_url: String,

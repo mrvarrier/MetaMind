@@ -448,7 +448,7 @@ impl Database {
         tracing::info!("Starting insights data collection");
         
         // Start with a very simple query to test basic functionality
-        let total_files_result = match sqlx::query("SELECT COUNT(*) as total FROM files")
+        let _total_files_result = match sqlx::query("SELECT COUNT(*) as total FROM files")
             .fetch_one(&self.pool)
             .await {
                 Ok(row) => {

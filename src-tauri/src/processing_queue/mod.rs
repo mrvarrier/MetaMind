@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::database::{Database, FileRecord};
 use crate::content_extractor::ContentExtractor;
-// use crate::ai_processor::AIProcessor; // Temporarily disabled
+use crate::ai_processor::AIProcessor;
 
 #[derive(Debug, Clone)]
 pub struct ProcessingJob {
@@ -30,7 +30,7 @@ pub enum JobPriority {
 #[derive(Debug)]
 pub struct ProcessingQueue {
     database: Database,
-    // ai_processor: AIProcessor, // Temporarily disabled
+    ai_processor: AIProcessor,
     queue: Arc<RwLock<VecDeque<ProcessingJob>>>,
     processing_semaphore: Arc<Semaphore>,
     max_concurrent_jobs: usize,
@@ -40,11 +40,12 @@ pub struct ProcessingQueue {
 impl ProcessingQueue {
     pub fn new(
         database: Database,
+        ai_processor: AIProcessor,
         max_concurrent_jobs: usize,
     ) -> Self {
         Self {
             database,
-            // ai_processor, // Temporarily disabled
+            ai_processor,
             queue: Arc::new(RwLock::new(VecDeque::new())),
             processing_semaphore: Arc::new(Semaphore::new(max_concurrent_jobs)),
             max_concurrent_jobs,
@@ -56,7 +57,7 @@ impl ProcessingQueue {
         // Start the main processing loop
         let queue = self.queue.clone();
         let database = self.database.clone();
-        // let ai_processor = self.ai_processor.clone(); // Temporarily disabled
+        let ai_processor = self.ai_processor.clone();
         let _semaphore = self.processing_semaphore.clone();
         let max_retries = self.max_retries;
 
@@ -75,10 +76,11 @@ impl ProcessingQueue {
                 if let Some(job) = job {
                     // Simplified processing without semaphore for now
                     let db = database.clone();
+                    let ai = ai_processor.clone();
                     let queue_for_retry = queue.clone();
                     
                     tokio::spawn(async move {
-                        if let Err(e) = Self::process_job(&db, &job).await {
+                        if let Err(e) = Self::process_job(&db, &ai, &job).await {
                             tracing::error!("Job {} failed: {}", job.id, e);
                             
                             // Retry logic
@@ -113,6 +115,7 @@ impl ProcessingQueue {
 
     async fn process_job(
         database: &Database,
+        ai_processor: &AIProcessor,
         job: &ProcessingJob,
     ) -> Result<()> {
         tracing::debug!("Processing job {} for file {}", job.id, job.file_path);
@@ -138,25 +141,52 @@ impl ProcessingQueue {
             extracted_content.text.clone()
         };
         
-        // Simple analysis without AI (for initial version)
-        let simple_summary = if truncated_content.len() > 200 {
-            format!("{}...", &truncated_content[..200])
+        // Perform AI analysis if available
+        let (summary, tags_json, embedding) = if ai_processor.is_available().await {
+            tracing::debug!("Performing AI analysis for file {}", job.file_path);
+            
+            match ai_processor.analyze_content(&extracted_content).await {
+                Ok(analysis) => {
+                    let tags_json = serde_json::to_string(&analysis.tags)?;
+                    (analysis.summary, Some(tags_json), analysis.embedding)
+                }
+                Err(e) => {
+                    tracing::warn!("AI analysis failed for {}: {}, falling back to basic analysis", job.file_path, e);
+                    
+                    // Fallback to simple analysis
+                    let simple_summary = if truncated_content.len() > 200 {
+                        format!("{}...", &truncated_content[..200])
+                    } else {
+                        truncated_content.clone()
+                    };
+                    let basic_tags = vec![extracted_content.file_type.clone()];
+                    let tags_json = serde_json::to_string(&basic_tags)?;
+                    (simple_summary, Some(tags_json), None)
+                }
+            }
         } else {
-            truncated_content.clone()
+            tracing::debug!("AI processor not available, using basic analysis for {}", job.file_path);
+            
+            // Simple analysis without AI
+            let simple_summary = if truncated_content.len() > 200 {
+                format!("{}...", &truncated_content[..200])
+            } else {
+                truncated_content.clone()
+            };
+            let basic_tags = vec![extracted_content.file_type.clone()];
+            let tags_json = serde_json::to_string(&basic_tags)?;
+            (simple_summary, Some(tags_json), None)
         };
-        
-        let basic_tags = vec![extracted_content.file_type.clone()];
-        let tags_json = serde_json::to_string(&basic_tags)?;
         
         tracing::debug!("Updating database with content length: {}", truncated_content.len());
         
-        // Update database with basic results
+        // Update database with analysis results
         database.update_file_analysis(
             &job.file_id,
             &truncated_content, // Store truncated content to prevent corruption
-            &simple_summary,
-            Some(&tags_json),
-            None, // No embeddings for now
+            &summary,
+            tags_json.as_deref(),
+            embedding.as_deref(),
         ).await?;
         
         let processing_time = start_time.elapsed();
@@ -278,11 +308,12 @@ impl ProcessingQueue {
     pub async fn get_statistics(&self) -> Result<serde_json::Value> {
         let queue_status = self.get_queue_status().await;
         let db_stats = self.database.get_processing_stats().await?;
+        let ai_available = self.ai_processor.is_available().await;
         
         Ok(serde_json::json!({
             "queue": queue_status,
             "database": db_stats,
-            "ai_available": false // Temporarily disabled
+            "ai_available": ai_available
         }))
     }
 }

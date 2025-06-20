@@ -11,12 +11,12 @@ use sqlx::Row;
 mod database;
 mod file_monitor;
 mod content_extractor;
-// mod ai_processor; // Temporarily disabled for initial compilation
+mod ai_processor;
 mod processing_queue;
 
 use database::Database;
 use file_monitor::FileMonitor;
-// use ai_processor::AIProcessor; // Temporarily disabled
+use ai_processor::AIProcessor;
 use processing_queue::ProcessingQueue;
 
 #[derive(Debug)]
@@ -24,6 +24,7 @@ pub struct AppState {
     pub config: Arc<RwLock<AppConfig>>,
     pub database: Database,
     pub file_monitor: FileMonitor,
+    pub ai_processor: AIProcessor,
     pub processing_queue: Arc<Mutex<ProcessingQueue>>,
 }
 
@@ -253,30 +254,104 @@ async fn get_search_suggestions(partial_query: String) -> Result<Vec<String>, St
 }
 
 #[tauri::command]
-async fn get_available_models() -> Result<serde_json::Value, String> {
-    // Check if Ollama is running and get available models
-    let client = reqwest::Client::new();
-    
-    match client.get("http://localhost:11434/api/tags").send().await {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.json::<serde_json::Value>().await {
-                    Ok(data) => Ok(data),
-                    Err(_) => {
-                        // Return empty models list if parsing fails
-                        Ok(serde_json::json!({"models": []}))
-                    }
-                }
-            } else {
-                // Ollama not running or error
-                Ok(serde_json::json!({"models": []}))
-            }
-        }
-        Err(_) => {
-            // Network error or Ollama not available
-            Ok(serde_json::json!({"models": []}))
+async fn get_available_models(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    // Check if AI processor is available and get models
+    match state.ai_processor.get_available_models().await {
+        Ok(models) => Ok(serde_json::json!({
+            "models": models,
+            "ai_available": true
+        })),
+        Err(e) => {
+            tracing::warn!("Failed to get available models: {}", e);
+            Ok(serde_json::json!({
+                "models": [],
+                "ai_available": false,
+                "error": e.to_string()
+            }))
         }
     }
+}
+
+#[tauri::command]
+async fn check_ai_availability(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let is_available = state.ai_processor.is_available().await;
+    Ok(serde_json::json!({
+        "available": is_available,
+        "ollama_url": state.config.read().await.ai.ollama_url,
+        "model": state.config.read().await.ai.model
+    }))
+}
+
+#[tauri::command]
+async fn semantic_search(query: String, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Performing semantic search for: {}", query);
+    
+    if !state.ai_processor.is_available().await {
+        // Fallback to regular search
+        return search_files(query, None, state).await;
+    }
+
+    // TODO: Implement vector similarity search once vector database is set up
+    // For now, use enhanced regular search
+    let start_time = std::time::Instant::now();
+    
+    // Get all files with embeddings from database
+    let search_results = match state.database.search_files(&query, 50, 0).await {
+        Ok(files) => files,
+        Err(e) => {
+            tracing::error!("Semantic search failed: {}", e);
+            return Err(format!("Semantic search failed: {}", e));
+        }
+    };
+    
+    // Convert to frontend format with enhanced scoring
+    let results: Vec<serde_json::Value> = search_results
+        .iter()
+        .map(|file| {
+            // Enhanced relevance scoring based on AI analysis
+            let score = if file.ai_analysis.is_some() { 0.95 } else { 0.70 };
+            
+            serde_json::json!({
+                "file": {
+                    "id": file.id,
+                    "path": file.path,
+                    "name": file.name,
+                    "extension": file.extension,
+                    "size": file.size,
+                    "created_at": file.created_at,
+                    "modified_at": file.modified_at,
+                    "mime_type": file.mime_type,
+                    "processing_status": file.processing_status
+                },
+                "score": score,
+                "snippet": file.ai_analysis.as_ref()
+                    .map(|analysis| {
+                        if analysis.len() > 200 {
+                            format!("{}...", &analysis[..200])
+                        } else {
+                            analysis.clone()
+                        }
+                    })
+                    .unwrap_or_else(|| "AI analysis not available".to_string()),
+                "highlights": file.tags.as_ref()
+                    .and_then(|tags| serde_json::from_str::<Vec<String>>(tags).ok())
+                    .unwrap_or_default(),
+                "search_type": "semantic"
+            })
+        })
+        .collect();
+    
+    let execution_time = start_time.elapsed().as_millis();
+    
+    let response = serde_json::json!({
+        "results": results,
+        "total": results.len(),
+        "query": query,
+        "execution_time_ms": execution_time,
+        "search_type": "semantic"
+    });
+    
+    Ok(response)
 }
 
 #[tauri::command]
@@ -750,9 +825,17 @@ async fn main() {
         .await
         .expect("Failed to initialize database");
 
-    // Initialize processing queue (without AI processor for initial version)
+    // Initialize AI processor
+    let config = AppConfig::default();
+    let ai_processor = AIProcessor::new(
+        config.ai.ollama_url.clone(),
+        config.ai.model.clone(),
+    );
+
+    // Initialize processing queue with AI processor
     let processing_queue = ProcessingQueue::new(
         database.clone(),
+        ai_processor.clone(),
         4, // max concurrent jobs
     );
     let processing_queue = Arc::new(tokio::sync::Mutex::new(processing_queue));
@@ -770,9 +853,10 @@ async fn main() {
     }
 
     let app_state = AppState {
-        config: Arc::new(RwLock::new(AppConfig::default())),
+        config: Arc::new(RwLock::new(config)),
         database,
         file_monitor,
+        ai_processor,
         processing_queue,
     };
 
@@ -790,6 +874,8 @@ async fn main() {
             stop_system_monitoring,
             get_search_suggestions,
             get_available_models,
+            check_ai_availability,
+            semantic_search,
             scan_directory,
             process_single_file,
             reset_database,
