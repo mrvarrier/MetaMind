@@ -13,11 +13,15 @@ mod file_monitor;
 mod content_extractor;
 mod ai_processor;
 mod processing_queue;
+mod updater;
+mod error_reporting;
 
 use database::Database;
 use file_monitor::FileMonitor;
 use ai_processor::AIProcessor;
 use processing_queue::ProcessingQueue;
+use updater::Updater;
+use error_reporting::ErrorReporter;
 
 #[derive(Debug)]
 pub struct AppState {
@@ -26,6 +30,8 @@ pub struct AppState {
     pub file_monitor: FileMonitor,
     pub ai_processor: AIProcessor,
     pub processing_queue: Arc<Mutex<ProcessingQueue>>,
+    pub updater: Arc<Mutex<Updater>>,
+    pub error_reporter: Arc<Mutex<ErrorReporter>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1018,6 +1024,42 @@ async fn get_file_errors(
     }
 }
 
+#[tauri::command]
+async fn check_for_updates(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let mut updater = state.updater.lock().await;
+    match updater.check_for_update().await {
+        Ok(update_info) => Ok(serde_json::to_value(update_info).unwrap()),
+        Err(e) => Err(format!("Failed to check for updates: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn install_update(state: State<'_, AppState>) -> Result<(), String> {
+    let mut updater = state.updater.lock().await;
+    updater.install_update().await
+        .map_err(|e| format!("Failed to install update: {}", e))
+}
+
+#[tauri::command]
+async fn get_error_reports(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let error_reporter = state.error_reporter.lock().await;
+    match error_reporter.get_recent_reports(10).await {
+        Ok(reports) => Ok(serde_json::to_value(reports).unwrap()),
+        Err(e) => Err(format!("Failed to get error reports: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn submit_error_report(
+    state: State<'_, AppState>, 
+    error: String, 
+    user_description: Option<String>
+) -> Result<(), String> {
+    let mut error_reporter = state.error_reporter.lock().await;
+    error_reporter.report_error(&error, user_description.as_deref()).await
+        .map_err(|e| format!("Failed to submit error report: {}", e))
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -1074,12 +1116,22 @@ async fn main() {
         }
     }
 
+    // Initialize updater
+    let updater = Updater::new().await;
+    let updater = Arc::new(Mutex::new(updater));
+
+    // Initialize error reporter
+    let error_reporter = ErrorReporter::new().await;
+    let error_reporter = Arc::new(Mutex::new(error_reporter));
+
     let app_state = AppState {
         config: Arc::new(RwLock::new(config)),
         database,
         file_monitor,
         ai_processor,
         processing_queue,
+        updater,
+        error_reporter,
     };
 
     tauri::Builder::default()
@@ -1116,7 +1168,11 @@ async fn main() {
             get_location_stats,
             get_file_errors,
             get_insights_data,
-            reprocess_error_files
+            reprocess_error_files,
+            check_for_updates,
+            install_update,
+            get_error_reports,
+            submit_error_report
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");
