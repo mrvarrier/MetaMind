@@ -65,7 +65,7 @@ impl ContentExtractor {
             "ppt" | "pptx" | "odp" => Self::extract_presentation_content(path).await,
             "json" | "geojson" => Self::extract_json_content(path).await,
             "csv" | "tsv" => Self::extract_csv_content(path).await,
-            "xml" | "html" | "htm" | "xhtml" | "svg" => Self::extract_markup_content(path).await,
+            "xml" | "html" | "htm" | "xhtml" => Self::extract_markup_content(path).await,
             "js" | "ts" | "jsx" | "tsx" | "py" | "rs" | "java" | "cpp" | "c" | "h" | "css" | "scss" | "sass" | "go" | "php" | "rb" | "swift" | "kt" | "dart" | "vue" | "sql" | "sh" | "bash" | "zsh" | "fish" => {
                 Self::extract_code_content(path).await
             }

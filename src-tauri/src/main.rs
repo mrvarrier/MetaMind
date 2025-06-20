@@ -32,12 +32,41 @@ pub struct AppState {
 pub struct AppConfig {
     pub version: String,
     pub ai: AIConfig,
+    pub performance: PerformanceConfig,
+    pub privacy: PrivacyConfig,
+    pub ui: UIConfig,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AIConfig {
     pub ollama_url: String,
     pub model: String,
+    pub enabled: bool,
+    pub max_content_length: usize,
+    pub timeout_seconds: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PerformanceConfig {
+    pub max_concurrent_jobs: usize,
+    pub max_file_size_mb: u64,
+    pub enable_background_processing: bool,
+    pub adaptive_performance: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PrivacyConfig {
+    pub local_processing_only: bool,
+    pub data_retention_days: u32,
+    pub anonymous_analytics: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UIConfig {
+    pub theme: String, // "light", "dark", "auto"
+    pub animations_enabled: bool,
+    pub compact_mode: bool,
+    pub show_file_previews: bool,
 }
 
 impl Default for AppConfig {
@@ -47,9 +76,115 @@ impl Default for AppConfig {
             ai: AIConfig {
                 ollama_url: "http://localhost:11434".to_string(),
                 model: "llama3.1:8b".to_string(),
+                enabled: true,
+                max_content_length: 1_000_000, // 1MB
+                timeout_seconds: 60,
+            },
+            performance: PerformanceConfig {
+                max_concurrent_jobs: 4,
+                max_file_size_mb: 100,
+                enable_background_processing: true,
+                adaptive_performance: true,
+            },
+            privacy: PrivacyConfig {
+                local_processing_only: true,
+                data_retention_days: 365,
+                anonymous_analytics: false,
+            },
+            ui: UIConfig {
+                theme: "auto".to_string(),
+                animations_enabled: true,
+                compact_mode: false,
+                show_file_previews: true,
             },
         }
     }
+}
+
+// Configuration validation and storage functions
+fn validate_config(config: &AppConfig) -> Result<(), String> {
+    // Validate AI configuration
+    if config.ai.ollama_url.is_empty() {
+        return Err("Ollama URL cannot be empty".to_string());
+    }
+    
+    if !config.ai.ollama_url.starts_with("http://") && !config.ai.ollama_url.starts_with("https://") {
+        return Err("Ollama URL must start with http:// or https://".to_string());
+    }
+    
+    if config.ai.model.is_empty() {
+        return Err("AI model name cannot be empty".to_string());
+    }
+    
+    if config.ai.max_content_length == 0 || config.ai.max_content_length > 10_000_000 {
+        return Err("AI max content length must be between 1 and 10MB".to_string());
+    }
+    
+    if config.ai.timeout_seconds == 0 || config.ai.timeout_seconds > 300 {
+        return Err("AI timeout must be between 1 and 300 seconds".to_string());
+    }
+    
+    // Validate performance configuration
+    if config.performance.max_concurrent_jobs == 0 || config.performance.max_concurrent_jobs > 32 {
+        return Err("Max concurrent jobs must be between 1 and 32".to_string());
+    }
+    
+    if config.performance.max_file_size_mb == 0 || config.performance.max_file_size_mb > 1000 {
+        return Err("Max file size must be between 1MB and 1GB".to_string());
+    }
+    
+    // Validate privacy configuration
+    if config.privacy.data_retention_days == 0 || config.privacy.data_retention_days > 3650 {
+        return Err("Data retention must be between 1 day and 10 years".to_string());
+    }
+    
+    // Validate UI configuration
+    if !["light", "dark", "auto"].contains(&config.ui.theme.as_str()) {
+        return Err("Theme must be 'light', 'dark', or 'auto'".to_string());
+    }
+    
+    // Validate version format
+    if config.version.is_empty() {
+        return Err("Version cannot be empty".to_string());
+    }
+    
+    Ok(())
+}
+
+async fn save_config_to_disk(config: &AppConfig) -> Result<(), anyhow::Error> {
+    let data_dir = dirs::config_dir()
+        .or_else(|| dirs::data_dir())
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("MetaMind");
+    
+    tokio::fs::create_dir_all(&data_dir).await?;
+    
+    let config_path = data_dir.join("config.json");
+    let config_json = serde_json::to_string_pretty(config)?;
+    
+    tokio::fs::write(config_path, config_json).await?;
+    Ok(())
+}
+
+async fn load_config_from_disk() -> Result<AppConfig, anyhow::Error> {
+    let data_dir = dirs::config_dir()
+        .or_else(|| dirs::data_dir())
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("MetaMind");
+    
+    let config_path = data_dir.join("config.json");
+    
+    if !config_path.exists() {
+        return Ok(AppConfig::default());
+    }
+    
+    let config_json = tokio::fs::read_to_string(config_path).await?;
+    let config: AppConfig = serde_json::from_str(&config_json)?;
+    
+    // Validate loaded configuration
+    validate_config(&config).map_err(|e| anyhow::anyhow!("Invalid configuration: {}", e))?;
+    
+    Ok(config)
 }
 
 #[tauri::command]
@@ -218,8 +353,73 @@ async fn update_config(
 ) -> Result<(), String> {
     let mut config = state.config.write().await;
     if let Ok(new_config) = serde_json::from_value::<AppConfig>(config_update) {
-        *config = new_config;
+        // Validate configuration before applying
+        if let Err(e) = validate_config(&new_config) {
+            return Err(format!("Invalid configuration: {}", e));
+        }
+        
+        *config = new_config.clone();
+        
+        // Save configuration to disk
+        if let Err(e) = save_config_to_disk(&new_config).await {
+            tracing::error!("Failed to save configuration: {}", e);
+            return Err(format!("Failed to save configuration: {}", e));
+        }
+        
+        tracing::info!("Configuration updated successfully");
     }
+    Ok(())
+}
+
+#[tauri::command]
+async fn reset_config_to_defaults(state: State<'_, AppState>) -> Result<(), String> {
+    let default_config = AppConfig::default();
+    
+    let mut config = state.config.write().await;
+    *config = default_config.clone();
+    
+    // Save to disk
+    if let Err(e) = save_config_to_disk(&default_config).await {
+        tracing::error!("Failed to save default configuration: {}", e);
+        return Err(format!("Failed to save default configuration: {}", e));
+    }
+    
+    tracing::info!("Configuration reset to defaults");
+    Ok(())
+}
+
+#[tauri::command]
+async fn export_config(state: State<'_, AppState>) -> Result<String, String> {
+    let config = state.config.read().await;
+    match serde_json::to_string_pretty(&*config) {
+        Ok(json) => Ok(json),
+        Err(e) => Err(format!("Failed to export configuration: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn import_config(
+    state: State<'_, AppState>,
+    config_json: String,
+) -> Result<(), String> {
+    let new_config: AppConfig = serde_json::from_str(&config_json)
+        .map_err(|e| format!("Invalid configuration format: {}", e))?;
+    
+    // Validate configuration
+    if let Err(e) = validate_config(&new_config) {
+        return Err(format!("Invalid configuration: {}", e));
+    }
+    
+    let mut config = state.config.write().await;
+    *config = new_config.clone();
+    
+    // Save to disk
+    if let Err(e) = save_config_to_disk(&new_config).await {
+        tracing::error!("Failed to save imported configuration: {}", e);
+        return Err(format!("Failed to save imported configuration: {}", e));
+    }
+    
+    tracing::info!("Configuration imported successfully");
     Ok(())
 }
 
@@ -836,8 +1036,19 @@ async fn main() {
         .await
         .expect("Failed to initialize database");
 
-    // Initialize AI processor
-    let config = AppConfig::default();
+    // Load configuration from disk
+    let config = match load_config_from_disk().await {
+        Ok(config) => {
+            tracing::info!("Loaded configuration from disk");
+            config
+        }
+        Err(e) => {
+            tracing::warn!("Failed to load configuration from disk: {}, using defaults", e);
+            AppConfig::default()
+        }
+    };
+
+    // Initialize AI processor with loaded configuration
     let ai_processor = AIProcessor::new(
         config.ai.ollama_url.clone(),
         config.ai.model.clone(),
@@ -881,6 +1092,9 @@ async fn main() {
             get_processing_insights,
             get_config,
             update_config,
+            reset_config_to_defaults,
+            export_config,
+            import_config,
             get_system_capabilities,
             start_system_monitoring,
             stop_system_monitoring,
