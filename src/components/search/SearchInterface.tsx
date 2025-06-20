@@ -5,11 +5,15 @@ import { Logo } from "../common/Logo";
 import { useSearchStore } from "../../stores/useSearchStore";
 import { SearchResults } from "./SearchResults";
 import { SearchFilters } from "./SearchFilters";
+import { VoiceSearch } from "./VoiceSearch";
+import { VisualSearch } from "./VisualSearch";
 
 export function SearchInterface() {
   const [searchInput, setSearchInput] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showVoiceSearch, setShowVoiceSearch] = useState(false);
+  const [showVisualSearch, setShowVisualSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -74,6 +78,22 @@ export function SearchInterface() {
     clearSearch();
     setShowSuggestions(false);
     searchInputRef.current?.focus();
+  };
+
+  const handleVoiceTranscript = (transcript: string) => {
+    setSearchInput(transcript);
+  };
+
+  const handleVoiceSearch = (query: string) => {
+    setSearchInput(query);
+    search(query);
+    setShowSuggestions(false);
+  };
+
+  const handleVisualSearch = (query: string, imageFile?: File) => {
+    setSearchInput(query);
+    search(query);
+    setShowSuggestions(false);
   };
 
   return (
@@ -190,6 +210,36 @@ export function SearchInterface() {
                 size="lg"
               >
                 Search
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => setShowVoiceSearch(true)}
+                size="lg"
+                title="Voice Search"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 1c-1.66 0-3 1.34-3 3v8c0 1.66 1.34 3 3 3s3-1.34 3-3V4c0-1.66-1.34-3-3-3zm0 18c-2.76 0-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.93V23h2v-2.07c3.39-.5 6-3.4 6-6.93h-2c0 2.76-2.24 5-5 5z"/>
+                </svg>
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => setShowVisualSearch(true)}
+                size="lg"
+                title="Visual Search"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M4 4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h16v7l-3-3-6 6-2-2-5 5V6z"/>
+                </svg>
               </Button>
 
               <Button
@@ -337,6 +387,21 @@ export function SearchInterface() {
           </div>
         )}
       </div>
+
+      {/* Voice Search Modal */}
+      <VoiceSearch
+        isOpen={showVoiceSearch}
+        onClose={() => setShowVoiceSearch(false)}
+        onTranscript={handleVoiceTranscript}
+        onSearch={handleVoiceSearch}
+      />
+
+      {/* Visual Search Modal */}
+      <VisualSearch
+        isOpen={showVisualSearch}
+        onClose={() => setShowVisualSearch(false)}
+        onSearch={handleVisualSearch}
+      />
     </div>
   );
 }
