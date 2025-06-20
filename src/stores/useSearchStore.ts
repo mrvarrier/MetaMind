@@ -11,6 +11,10 @@ interface SearchState {
   isSearching: boolean;
   searchHistory: string[];
   
+  // AI state
+  aiAvailable: boolean;
+  lastSearchType: string;
+  
   // Filters and view
   filters: SearchFilters;
   viewMode: ViewMode;
@@ -40,6 +44,7 @@ interface SearchState {
   addToHistory: (query: string) => void;
   clearHistory: () => void;
   goToPage: (page: number) => void;
+  checkAiAvailability: () => Promise<void>;
   
   // Helper methods
   convertProcessedFilesToSearchResults: (files: ProcessedFile[], query: string) => SearchResult[];
@@ -55,6 +60,8 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   suggestions: [],
   isSearching: false,
   searchHistory: [],
+  aiAvailable: false,
+  lastSearchType: 'unknown',
   filters: {},
   viewMode: 'grid',
   sortBy: 'relevance',
@@ -66,6 +73,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   // Initialize the store
   init: () => {
+    // Check AI availability on startup
+    get().checkAiAvailability();
+    
     // Subscribe to file processing updates
     fileProcessingService.subscribe((_files) => {
       const { query } = get();
@@ -93,50 +103,99 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         total: number;
         query: string;
         execution_time_ms: number;
+        search_type?: string;
       };
 
-      // Try file processing service first (uses files from onboarding)
-      let processedFiles;
+      // Try enhanced search strategies in order of preference
       if (query.trim()) {
-        // Use backend search if available, fallback to local search
-        processedFiles = await fileProcessingService.searchFilesFromBackend(query);
-      } else {
-        // If no query, show all processed files from backend
-        processedFiles = await fileProcessingService.getProcessedFilesFromBackend();
-      }
-      
-      if (processedFiles.length > 0) {
-        // Convert processed files to search results
-        const searchResults = get().convertProcessedFilesToSearchResults(processedFiles, query);
-        response = {
-          results: searchResults,
-          total: searchResults.length,
-          query: query,
-          execution_time_ms: 25
-        };
-      } else {
-        // Try backend if no processed files found
+        // 1. Try semantic search first for intelligent queries
         try {
           response = await invoke<{
             results: SearchResult[];
             total: number;
             query: string;
             execution_time_ms: number;
-          }>('search_files', { 
-            query: searchQuery.text, 
-            filters: searchQuery.filters 
-          });
-        } catch (backendError) {
-          console.warn('Backend search not available, using mock data:', backendError);
+            search_type: string;
+          }>('semantic_search', { query: searchQuery.text });
           
-          // Generate mock search results as final fallback
-          const mockResults = get().generateMockResults(query);
+          console.log('Semantic search successful:', response.search_type);
+          set({ lastSearchType: 'semantic' });
+        } catch (semanticError) {
+          console.warn('Semantic search not available, trying regular search:', semanticError);
+          
+          // 2. Fallback to regular backend search
+          try {
+            response = await invoke<{
+              results: SearchResult[];
+              total: number;
+              query: string;
+              execution_time_ms: number;
+            }>('search_files', { 
+              query: searchQuery.text, 
+              filters: searchQuery.filters 
+            });
+            set({ lastSearchType: 'regular' });
+          } catch (backendError) {
+            console.warn('Backend search not available, trying file processing service:', backendError);
+            
+            // 3. Try file processing service
+            const processedFiles = await fileProcessingService.searchFilesFromBackend(query);
+            if (processedFiles.length > 0) {
+              const searchResults = get().convertProcessedFilesToSearchResults(processedFiles, query);
+              response = {
+                results: searchResults,
+                total: searchResults.length,
+                query: query,
+                execution_time_ms: 25
+              };
+              set({ lastSearchType: 'file_service' });
+            } else {
+              // 4. Final fallback to mock data
+              const mockResults = get().generateMockResults(query);
+              response = {
+                results: mockResults,
+                total: mockResults.length,
+                query: query,
+                execution_time_ms: 45
+              };
+              set({ lastSearchType: 'mock' });
+            }
+          }
+        }
+      } else {
+        // For empty queries, show all available files
+        try {
+          const processedFiles = await fileProcessingService.getProcessedFilesFromBackend();
+          if (processedFiles.length > 0) {
+            const searchResults = get().convertProcessedFilesToSearchResults(processedFiles, '');
+            response = {
+              results: searchResults,
+              total: searchResults.length,
+              query: '',
+              execution_time_ms: 15
+            };
+            set({ lastSearchType: 'all_files' });
+          } else {
+            // Show mock results for empty query
+            const mockResults = get().generateMockResults('');
+            response = {
+              results: mockResults,
+              total: mockResults.length,
+              query: '',
+              execution_time_ms: 20
+            };
+            set({ lastSearchType: 'mock' });
+          }
+        } catch (error) {
+          console.warn('Failed to get all files, using mock data:', error);
+          const mockResults = get().generateMockResults('');
           response = {
             results: mockResults,
             total: mockResults.length,
-            query: query,
-            execution_time_ms: 45
+            query: '',
+            execution_time_ms: 20
           };
+          set({ lastSearchType: 'mock' });
         }
       }
 
@@ -433,5 +492,21 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         suggestion.toLowerCase().includes(partialQuery.toLowerCase())
       )
       .slice(0, 5);
+  },
+
+  checkAiAvailability: async () => {
+    try {
+      const aiStatus = await invoke<{
+        available: boolean;
+        ollama_url: string;
+        model: string;
+      }>('check_ai_availability');
+      
+      set({ aiAvailable: aiStatus.available });
+      console.log('AI availability checked:', aiStatus.available);
+    } catch (error) {
+      console.warn('Failed to check AI availability:', error);
+      set({ aiAvailable: false });
+    }
   },
 }));

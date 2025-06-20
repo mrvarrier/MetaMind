@@ -1,0 +1,246 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run frontend unit tests
+      run: npm run test:run
+    
+    - name: Run frontend tests with coverage
+      run: npm run test:coverage
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: frontend
+        name: frontend-coverage
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+    
+    - name: Check Rust formatting
+      run: cd src-tauri && cargo fmt --all -- --check
+    
+    - name: Run Rust clippy
+      run: cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
+    
+    - name: Run Rust tests
+      run: cd src-tauri && cargo test --verbose
+    
+    - name: Run Rust tests with coverage
+      run: |
+        cd src-tauri
+        cargo install cargo-tarpaulin
+        cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./src-tauri/cobertura.xml
+        flags: backend
+        name: backend-coverage
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run ESLint
+      run: npm run lint
+    
+    - name: Check TypeScript
+      run: npx tsc --noEmit
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps
+    
+    - name: Build Tauri app
+      run: npm run tauri build
+    
+    - name: Run Playwright tests
+      run: npm run test:e2e
+    
+    - name: Upload Playwright report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30
+
+  integration-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run integration tests
+      run: |
+        npm run build
+        cd src-tauri && cargo test --test integration_tests --verbose
+
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate
+    
+    - name: Run cargo audit
+      run: cd src-tauri && cargo audit
+    
+    - name: Run security checks
+      run: |
+        # Check for hardcoded secrets
+        grep -r -i "password\|secret\|key\|token" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.rs" src/ src-tauri/src/ || echo "No hardcoded secrets found"
+        
+        # Check for TODO/FIXME security items
+        grep -r -i "todo.*security\|fixme.*security" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.rs" src/ src-tauri/src/ || echo "No security TODOs found"
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run performance benchmarks
+      run: |
+        cd src-tauri
+        cargo test --release --test performance_tests --verbose
+    
+    - name: Bundle size check
+      run: |
+        npm run build
+        npx bundlesize

@@ -506,3 +506,6 @@ impl ContentExtractor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

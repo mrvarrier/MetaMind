@@ -16,9 +16,12 @@ export function SearchInterface() {
     query,
     suggestions,
     isSearching,
+    aiAvailable,
+    lastSearchType,
     search,
     getSuggestions,
     clearSearch,
+    checkAiAvailability,
   } = useSearchStore();
 
   useEffect(() => {
@@ -88,6 +91,39 @@ export function SearchInterface() {
                   Search through your files using natural language
                 </p>
               </div>
+            </div>
+            
+            {/* AI Status Indicator */}
+            <div className="flex items-center space-x-2">
+              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
+                aiAvailable 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  aiAvailable ? 'bg-green-400' : 'bg-yellow-400'
+                }`}></div>
+                <span>{aiAvailable ? 'AI Enhanced' : 'Basic Search'}</span>
+              </div>
+              
+              {lastSearchType && lastSearchType !== 'unknown' && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Last: {lastSearchType === 'semantic' ? 'AI' : 
+                         lastSearchType === 'regular' ? 'Text' :
+                         lastSearchType === 'file_service' ? 'Local' :
+                         lastSearchType === 'all_files' ? 'All' : 'Mock'}
+                </div>
+              )}
+              
+              <button
+                onClick={checkAiAvailability}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                title="Refresh AI status"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
             </div>
           </div>
           {/* Main Search Bar */}
