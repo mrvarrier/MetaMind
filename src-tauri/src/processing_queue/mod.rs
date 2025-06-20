@@ -236,6 +236,12 @@ impl ProcessingQueue {
             }
         );
         
+        let avg_retry_count = if queue.is_empty() {
+            0.0
+        } else {
+            queue.iter().map(|job| job.retry_count as f64).sum::<f64>() / queue.len() as f64
+        };
+        
         serde_json::json!({
             "total_queued": queue.len(),
             "active_workers": active_workers,
@@ -243,7 +249,11 @@ impl ProcessingQueue {
             "priority_breakdown": priority_counts,
             "oldest_job_age_seconds": queue.front()
                 .map(|job| job.created_at.elapsed().as_secs())
-                .unwrap_or(0)
+                .unwrap_or(0),
+            "average_retry_count": avg_retry_count,
+            "processing_efficiency": if queue.is_empty() { 100.0 } else { 
+                (1.0 - avg_retry_count / self.max_retries as f64) * 100.0 
+            }
         })
     }
 
@@ -313,7 +323,69 @@ impl ProcessingQueue {
         Ok(serde_json::json!({
             "queue": queue_status,
             "database": db_stats,
-            "ai_available": ai_available
+            "ai_available": ai_available,
+            "performance": {
+                "max_workers": self.max_concurrent_jobs,
+                "max_retries": self.max_retries,
+                "ai_analysis_enabled": ai_available
+            }
         }))
+    }
+
+    pub async fn get_processing_insights(&self) -> Result<serde_json::Value> {
+        let queue = self.queue.read().await;
+        let ai_available = self.ai_processor.is_available().await;
+        
+        // Calculate processing insights
+        let total_jobs = queue.len();
+        let high_priority_jobs = queue.iter().filter(|job| matches!(job.priority, JobPriority::High | JobPriority::Critical)).count();
+        let retry_jobs = queue.iter().filter(|job| job.retry_count > 0).count();
+        
+        let oldest_job_hours = queue.front()
+            .map(|job| job.created_at.elapsed().as_secs() as f64 / 3600.0)
+            .unwrap_or(0.0);
+        
+        Ok(serde_json::json!({
+            "total_jobs_queued": total_jobs,
+            "high_priority_jobs": high_priority_jobs,
+            "retry_jobs": retry_jobs,
+            "oldest_job_hours": oldest_job_hours,
+            "ai_processing_enabled": ai_available,
+            "estimated_completion_hours": if total_jobs == 0 { 0.0 } else {
+                // Rough estimate: 2 seconds per file average
+                (total_jobs as f64 * 2.0) / 3600.0
+            },
+            "recommendations": self.generate_recommendations(total_jobs, high_priority_jobs, retry_jobs, oldest_job_hours, ai_available)
+        }))
+    }
+
+    fn generate_recommendations(&self, total_jobs: usize, high_priority_jobs: usize, retry_jobs: usize, oldest_job_hours: f64, ai_available: bool) -> Vec<String> {
+        let mut recommendations = Vec::new();
+        
+        if total_jobs > 100 {
+            recommendations.push("Consider increasing worker count for faster processing".to_string());
+        }
+        
+        if retry_jobs > total_jobs / 4 {
+            recommendations.push("High retry rate detected - check file permissions and corruption".to_string());
+        }
+        
+        if oldest_job_hours > 24.0 {
+            recommendations.push("Jobs over 24 hours old detected - consider queue maintenance".to_string());
+        }
+        
+        if !ai_available {
+            recommendations.push("AI processing unavailable - install and start Ollama for enhanced analysis".to_string());
+        }
+        
+        if high_priority_jobs > total_jobs / 2 {
+            recommendations.push("Many high priority jobs - consider processing them first".to_string());
+        }
+        
+        if recommendations.is_empty() {
+            recommendations.push("Processing queue is healthy".to_string());
+        }
+        
+        recommendations
     }
 }

@@ -58,15 +58,20 @@ impl ContentExtractor {
 
         match extension.as_str() {
             "pdf" => Self::extract_pdf_content(path).await,
-            "txt" | "md" | "readme" => Self::extract_text_content(path).await,
-            "jpg" | "jpeg" | "png" | "tiff" | "tif" | "bmp" | "gif" => Self::extract_image_content(path).await,
-            "doc" | "docx" => Self::extract_document_content(path).await,
-            "json" => Self::extract_json_content(path).await,
-            "csv" => Self::extract_csv_content(path).await,
-            "xml" | "html" | "htm" => Self::extract_markup_content(path).await,
-            "js" | "ts" | "py" | "rs" | "java" | "cpp" | "c" | "h" | "css" | "scss" | "sass" => {
+            "txt" | "md" | "readme" | "log" | "yaml" | "yml" | "toml" | "ini" | "cfg" => Self::extract_text_content(path).await,
+            "jpg" | "jpeg" | "png" | "tiff" | "tif" | "bmp" | "gif" | "webp" | "svg" | "ico" => Self::extract_image_content(path).await,
+            "doc" | "docx" | "odt" | "rtf" => Self::extract_document_content(path).await,
+            "xls" | "xlsx" | "ods" => Self::extract_spreadsheet_content(path).await,
+            "ppt" | "pptx" | "odp" => Self::extract_presentation_content(path).await,
+            "json" | "geojson" => Self::extract_json_content(path).await,
+            "csv" | "tsv" => Self::extract_csv_content(path).await,
+            "xml" | "html" | "htm" | "xhtml" | "svg" => Self::extract_markup_content(path).await,
+            "js" | "ts" | "jsx" | "tsx" | "py" | "rs" | "java" | "cpp" | "c" | "h" | "css" | "scss" | "sass" | "go" | "php" | "rb" | "swift" | "kt" | "dart" | "vue" | "sql" | "sh" | "bash" | "zsh" | "fish" => {
                 Self::extract_code_content(path).await
             }
+            "zip" | "tar" | "gz" | "rar" | "7z" => Self::extract_archive_content(path).await,
+            "mp3" | "wav" | "flac" | "m4a" | "ogg" => Self::extract_audio_content(path).await,
+            "mp4" | "avi" | "mkv" | "mov" | "wmv" | "webm" => Self::extract_video_content(path).await,
             _ => Self::extract_generic_content(path).await,
         }
     }
@@ -393,6 +398,101 @@ impl ContentExtractor {
         }
         
         result.trim().to_string()
+    }
+
+    async fn extract_spreadsheet_content<P: AsRef<Path>>(path: P) -> Result<ExtractedContent> {
+        let path = path.as_ref();
+        let metadata_std = fs::metadata(path).await?;
+        
+        let metadata = ContentMetadata::default();
+        let text = format!(
+            "Spreadsheet file: {}\nSize: {} bytes\nExtension: {}\nLikely contains tabular data, charts, and formulas",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            metadata_std.len(),
+            path.extension().unwrap_or_default().to_string_lossy()
+        );
+
+        Ok(ExtractedContent {
+            text,
+            metadata,
+            file_type: "spreadsheet".to_string(),
+        })
+    }
+
+    async fn extract_presentation_content<P: AsRef<Path>>(path: P) -> Result<ExtractedContent> {
+        let path = path.as_ref();
+        let metadata_std = fs::metadata(path).await?;
+        
+        let metadata = ContentMetadata::default();
+        let text = format!(
+            "Presentation file: {}\nSize: {} bytes\nExtension: {}\nLikely contains slides, images, and text content",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            metadata_std.len(),
+            path.extension().unwrap_or_default().to_string_lossy()
+        );
+
+        Ok(ExtractedContent {
+            text,
+            metadata,
+            file_type: "presentation".to_string(),
+        })
+    }
+
+    async fn extract_archive_content<P: AsRef<Path>>(path: P) -> Result<ExtractedContent> {
+        let path = path.as_ref();
+        let metadata_std = fs::metadata(path).await?;
+        
+        let metadata = ContentMetadata::default();
+        let text = format!(
+            "Archive file: {}\nSize: {} bytes\nExtension: {}\nCompressed archive containing multiple files",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            metadata_std.len(),
+            path.extension().unwrap_or_default().to_string_lossy()
+        );
+
+        Ok(ExtractedContent {
+            text,
+            metadata,
+            file_type: "archive".to_string(),
+        })
+    }
+
+    async fn extract_audio_content<P: AsRef<Path>>(path: P) -> Result<ExtractedContent> {
+        let path = path.as_ref();
+        let metadata_std = fs::metadata(path).await?;
+        
+        let metadata = ContentMetadata::default();
+        let text = format!(
+            "Audio file: {}\nSize: {} bytes\nExtension: {}\nAudio content - music, speech, or sound recording",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            metadata_std.len(),
+            path.extension().unwrap_or_default().to_string_lossy()
+        );
+
+        Ok(ExtractedContent {
+            text,
+            metadata,
+            file_type: "audio".to_string(),
+        })
+    }
+
+    async fn extract_video_content<P: AsRef<Path>>(path: P) -> Result<ExtractedContent> {
+        let path = path.as_ref();
+        let metadata_std = fs::metadata(path).await?;
+        
+        let metadata = ContentMetadata::default();
+        let text = format!(
+            "Video file: {}\nSize: {} bytes\nExtension: {}\nVideo content with visual and audio elements",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            metadata_std.len(),
+            path.extension().unwrap_or_default().to_string_lossy()
+        );
+
+        Ok(ExtractedContent {
+            text,
+            metadata,
+            file_type: "video".to_string(),
+        })
     }
 
     fn detect_language(text: &str) -> Option<String> {

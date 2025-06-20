@@ -195,6 +195,17 @@ async fn get_processing_status(state: State<'_, AppState>) -> Result<serde_json:
 }
 
 #[tauri::command]
+async fn get_processing_insights(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    match state.processing_queue.lock().await.get_processing_insights().await {
+        Ok(insights) => Ok(insights),
+        Err(e) => {
+            tracing::error!("Failed to get processing insights: {}", e);
+            Err(format!("Failed to get processing insights: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
 async fn get_config(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let config = state.config.read().await;
     Ok(serde_json::to_value(&*config).map_err(|e| e.to_string())?)
@@ -867,6 +878,7 @@ async fn main() {
             start_file_monitoring,
             search_files,
             get_processing_status,
+            get_processing_insights,
             get_config,
             update_config,
             get_system_capabilities,
