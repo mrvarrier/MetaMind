@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../common/Button";
 import { useAppStore } from "../../stores/useAppStore";
 import { invoke } from "@tauri-apps/api/tauri";
+import { AdvancedSettings } from "./AdvancedSettings";
 
 export function Settings() {
   const { theme, setTheme } = useAppStore();
   const [activeTab, setActiveTab] = useState("general");
   const [isLoading, setIsLoading] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   
   const [settings, setSettings] = useState({
     theme: theme,
@@ -388,18 +390,35 @@ export function Settings() {
               
               {renderTabContent()}
 
-              <div className="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <Button variant="secondary">
-                  Reset to Defaults
+              <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowAdvancedSettings(true)}
+                  className="text-sm"
+                >
+                  🔧 Advanced Settings
                 </Button>
-                <Button onClick={handleSaveSettings} loading={isLoading}>
-                  Save Changes
-                </Button>
+                
+                <div className="flex space-x-3">
+                  <Button variant="secondary">
+                    Reset to Defaults
+                  </Button>
+                  <Button onClick={handleSaveSettings} loading={isLoading}>
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </div>
         </div>
       </div>
+
+      {/* Advanced Settings Modal */}
+      <AnimatePresence>
+        {showAdvancedSettings && (
+          <AdvancedSettings onClose={() => setShowAdvancedSettings(false)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
