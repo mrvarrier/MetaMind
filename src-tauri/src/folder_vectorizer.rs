@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use tokio::fs;
@@ -212,18 +212,18 @@ impl FolderVectorizer {
     }
 
     /// Get all file vectors within a folder
-    async fn get_folder_file_vectors(&self, folder_path: &str) -> Result<Vec<(String, Vec<f32>, u64)>> {
+    async fn get_folder_file_vectors(&self, _folder_path: &str) -> Result<Vec<(String, Vec<f32>, u64)>> {
         // TODO: Query database for files in folder with their vectors and sizes
         // For now, return empty vector
         Ok(Vec::new())
     }
 
     /// Analyze folder structure and metadata
-    async fn analyze_folder_structure(&self, folder_path: &str) -> Result<FolderStats> {
-        let mut file_count = 0;
-        let mut total_size = 0;
-        let mut file_types = HashMap::new();
-        let mut dominant_categories = Vec::new();
+    async fn analyze_folder_structure(&self, _folder_path: &str) -> Result<FolderStats> {
+        let file_count = 0;
+        let total_size = 0;
+        let file_types = HashMap::new();
+        let dominant_categories = Vec::new();
 
         // TODO: Scan folder and collect statistics
         // For now, return basic stats
@@ -288,7 +288,7 @@ impl FolderVectorizer {
     }
 
     /// Extract thematic description of folder content
-    async fn extract_folder_theme(&self, folder_path: &str, file_vectors: &[(String, Vec<f32>, u64)]) -> Result<FolderTheme> {
+    async fn extract_folder_theme(&self, folder_path: &str, _file_vectors: &[(String, Vec<f32>, u64)]) -> Result<FolderTheme> {
         // TODO: Analyze file content and generate theme description
         // For now, return basic theme
         Ok(FolderTheme {

@@ -313,7 +313,7 @@ impl VectorCache {
             let mut futures = Vec::new();
             
             for (file_id, vector_type) in chunk {
-                let storage = vector_storage.clone();
+                let _storage = vector_storage.clone();
                 let fid = file_id.clone();
                 let vtype = vector_type.clone();
                 

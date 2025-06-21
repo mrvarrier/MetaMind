@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
@@ -446,7 +446,7 @@ impl SemanticSearchEngine {
 
     /// Expand query using AI for better semantic matching
     async fn expand_query(&self, query: &str) -> Result<String> {
-        let prompt = format!(
+        let _prompt = format!(
             r#"Expand this search query with related terms and concepts for better semantic search.
             Keep the expansion concise and relevant.
             
@@ -464,7 +464,7 @@ impl SemanticSearchEngine {
 
     /// Generate content summary for vector creation
     async fn generate_content_summary(&self, content: &str) -> Result<String> {
-        let prompt = format!(
+        let _prompt = format!(
             r#"Summarize this content in 2-3 sentences, capturing the main themes and concepts:
             
             {}
@@ -516,7 +516,7 @@ impl SemanticSearchEngine {
     }
 
     /// Apply search filters to results
-    async fn apply_filters(&self, mut results: Vec<SearchResult>, _filters: &SearchFilters) -> Result<Vec<SearchResult>> {
+    async fn apply_filters(&self, results: Vec<SearchResult>, _filters: &SearchFilters) -> Result<Vec<SearchResult>> {
         // TODO: Implement filtering logic
         // For now, return unfiltered results
         Ok(results)

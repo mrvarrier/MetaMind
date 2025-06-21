@@ -1,5 +1,4 @@
 use std::time::{Duration, Instant};
-use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use anyhow::Result;
 
@@ -331,7 +330,7 @@ impl VectorBenchmarks {
                 let _ = self.vector_cache.get_vector(&format!("cache_test_{}", i), "content").await;
             }
         }
-        let cache_miss_duration = start.elapsed();
+        let _cache_miss_duration = start.elapsed();
 
         let cache_stats = self.vector_cache.get_statistics().await;
 

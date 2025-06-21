@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
 use sqlx::{SqlitePool, Row};
-use std::collections::HashMap;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Deserialize};
