@@ -12,6 +12,8 @@ pub mod plugin_system;
 pub mod platform_optimizations;
 pub mod knowledge_base;
 pub mod cloud_sync;
+pub mod vector_math;
+pub mod vector_storage;
 
 pub use database::Database;
 pub use file_monitor::FileMonitor;
@@ -26,3 +28,5 @@ pub use plugin_system::PluginSystem;
 pub use platform_optimizations::PlatformOptimizer;
 pub use knowledge_base::KnowledgeBase;
 pub use cloud_sync::CloudSyncManager;
+pub use vector_math::VectorMath;
+pub use vector_storage::VectorStorageManager;
