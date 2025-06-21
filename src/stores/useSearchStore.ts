@@ -45,6 +45,9 @@ interface SearchState {
   clearHistory: () => void;
   goToPage: (page: number) => void;
   checkAiAvailability: () => Promise<void>;
+  hybridSearch: (query: string, filters?: SearchFilters) => Promise<void>;
+  generateFileVectors: (fileId: string) => Promise<void>;
+  getVectorStatistics: () => Promise<any>;
   
   // Helper methods
   convertProcessedFilesToSearchResults: (files: ProcessedFile[], query: string) => SearchResult[];
@@ -116,6 +119,8 @@ export const useSearchStore = create<SearchState>((set, get) => ({
             query: string;
             execution_time_ms: number;
             search_type: string;
+            expanded_query?: string;
+            suggestions?: string[];
           }>('semantic_search', { query: searchQuery.text });
           
           console.log('Semantic search successful:', response.search_type);
@@ -507,6 +512,66 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     } catch (error) {
       console.warn('Failed to check AI availability:', error);
       set({ aiAvailable: false });
+    }
+  },
+
+  hybridSearch: async (query: string, filters?: SearchFilters) => {
+    try {
+      set({ isSearching: true, query });
+
+      const response = await invoke<{
+        results: SearchResult[];
+        total: number;
+        query: string;
+        execution_time_ms: number;
+        search_type: string;
+        expanded_query?: string;
+        suggestions?: string[];
+      }>('hybrid_search', { query });
+
+      console.log('Hybrid search successful:', response.search_type);
+      
+      const sortedResults = get().applySorting(response.results);
+
+      set({
+        results: sortedResults,
+        totalResults: response.total,
+        isSearching: false,
+        selectedResults: [],
+        lastSearchType: 'hybrid',
+      });
+
+      if (query.trim()) {
+        get().addToHistory(query);
+      }
+    } catch (error) {
+      console.error('Hybrid search failed:', error);
+      set({ 
+        isSearching: false,
+        results: [],
+        totalResults: 0,
+      });
+    }
+  },
+
+  generateFileVectors: async (fileId: string) => {
+    try {
+      await invoke('generate_file_vectors', { fileId });
+      console.log('Vectors generated for file:', fileId);
+    } catch (error) {
+      console.error('Failed to generate vectors:', error);
+      throw error;
+    }
+  },
+
+  getVectorStatistics: async () => {
+    try {
+      const stats = await invoke('get_vector_statistics');
+      console.log('Vector statistics:', stats);
+      return stats;
+    } catch (error) {
+      console.error('Failed to get vector statistics:', error);
+      throw error;
     }
   },
 }));

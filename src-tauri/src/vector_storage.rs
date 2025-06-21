@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 use sha2::{Sha256, Digest};
 
 /// Manager for vector storage and retrieval operations
+#[derive(Debug, Clone)]
 pub struct VectorStorageManager {
     db: SqlitePool,
 }

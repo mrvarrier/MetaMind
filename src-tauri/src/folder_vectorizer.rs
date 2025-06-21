@@ -10,6 +10,7 @@ use crate::vector_storage::VectorStorageManager;
 use crate::ai_processor::AIProcessor;
 
 /// Manages folder-level vector aggregation and theme analysis
+#[derive(Debug)]
 pub struct FolderVectorizer {
     vector_storage: VectorStorageManager,
     ai_processor: AIProcessor,

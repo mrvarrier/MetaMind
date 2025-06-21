@@ -9,6 +9,7 @@ use crate::ai_processor::AIProcessor;
 use crate::content_extractor::ExtractedContent;
 
 /// Advanced semantic search engine with vector capabilities
+#[derive(Debug)]
 pub struct SemanticSearchEngine {
     vector_storage: VectorStorageManager,
     ai_processor: AIProcessor,

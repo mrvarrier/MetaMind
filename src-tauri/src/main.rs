@@ -15,6 +15,10 @@ mod ai_processor;
 mod processing_queue;
 mod updater;
 mod error_reporting;
+mod vector_math;
+mod vector_storage;
+mod semantic_search;
+mod folder_vectorizer;
 
 use database::Database;
 use file_monitor::FileMonitor;
@@ -22,6 +26,9 @@ use ai_processor::AIProcessor;
 use processing_queue::ProcessingQueue;
 use updater::Updater;
 use error_reporting::ErrorReporter;
+use vector_storage::VectorStorageManager;
+use semantic_search::SemanticSearchEngine;
+use folder_vectorizer::FolderVectorizer;
 
 #[derive(Debug)]
 pub struct AppState {
@@ -32,6 +39,9 @@ pub struct AppState {
     pub processing_queue: Arc<Mutex<ProcessingQueue>>,
     pub updater: Arc<Mutex<Updater>>,
     pub error_reporter: Arc<Mutex<ErrorReporter>>,
+    pub vector_storage: VectorStorageManager,
+    pub semantic_search: SemanticSearchEngine,
+    pub folder_vectorizer: FolderVectorizer,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -504,71 +514,69 @@ async fn semantic_search(query: String, state: State<'_, AppState>) -> Result<se
     tracing::info!("Performing semantic search for: {}", query);
     
     if !state.ai_processor.is_available().await {
-        // Fallback to regular search
+        tracing::warn!("AI not available, falling back to regular search");
         return search_files(query, None, state).await;
     }
 
-    // TODO: Implement vector similarity search once vector database is set up
-    // For now, use enhanced regular search
-    let start_time = std::time::Instant::now();
-    
-    // Get files with embeddings from database for semantic search
-    let search_results = match state.database.search_files_with_embeddings(&query, 50).await {
-        Ok(files) => files,
+    // Use the new semantic search engine
+    let search_request = semantic_search::SearchRequest {
+        query: query.clone(),
+        search_type: semantic_search::SearchType::Semantic,
+        filters: None,
+        limit: Some(50),
+        threshold: Some(0.7),
+    };
+
+    match state.semantic_search.search(search_request).await {
+        Ok(search_response) => {
+            // Convert our search response to the expected frontend format
+            let results: Vec<serde_json::Value> = search_response.results
+                .iter()
+                .map(|result| {
+                    serde_json::json!({
+                        "file": {
+                            "id": result.file_id,
+                            "path": result.file_path,
+                            "name": result.file_name,
+                            "extension": std::path::Path::new(&result.file_path)
+                                .extension()
+                                .and_then(|ext| ext.to_str())
+                                .unwrap_or(""),
+                            "size": 0, // TODO: Get from metadata
+                            "created_at": result.last_modified,
+                            "modified_at": result.last_modified,
+                            "mime_type": "", // TODO: Get from metadata
+                            "processing_status": "completed"
+                        },
+                        "score": result.similarity_score,
+                        "snippet": result.snippet.as_ref().unwrap_or(&format!("Match in {}", result.file_name)),
+                        "highlights": result.highlights,
+                        "search_type": "semantic"
+                    })
+                })
+                .collect();
+
+            let response = serde_json::json!({
+                "results": results,
+                "total": search_response.total_results,
+                "query": search_response.query,
+                "execution_time_ms": search_response.search_time_ms,
+                "search_type": "semantic",
+                "expanded_query": search_response.expanded_query,
+                "suggestions": search_response.suggestions
+            });
+
+            tracing::info!("Semantic search completed: {} results in {}ms", 
+                search_response.total_results, search_response.search_time_ms);
+            Ok(response)
+        }
         Err(e) => {
             tracing::error!("Semantic search failed: {}", e);
-            return Err(format!("Semantic search failed: {}", e));
+            // Fallback to regular search
+            tracing::info!("Falling back to regular search due to semantic search failure");
+            search_files(query, None, state).await
         }
-    };
-    
-    // Convert to frontend format with enhanced scoring
-    let results: Vec<serde_json::Value> = search_results
-        .iter()
-        .map(|file| {
-            // Enhanced relevance scoring based on AI analysis
-            let score = if file.ai_analysis.is_some() { 0.95 } else { 0.70 };
-            
-            serde_json::json!({
-                "file": {
-                    "id": file.id,
-                    "path": file.path,
-                    "name": file.name,
-                    "extension": file.extension,
-                    "size": file.size,
-                    "created_at": file.created_at,
-                    "modified_at": file.modified_at,
-                    "mime_type": file.mime_type,
-                    "processing_status": file.processing_status
-                },
-                "score": score,
-                "snippet": file.ai_analysis.as_ref()
-                    .map(|analysis| {
-                        if analysis.len() > 200 {
-                            format!("{}...", &analysis[..200])
-                        } else {
-                            analysis.clone()
-                        }
-                    })
-                    .unwrap_or_else(|| "AI analysis not available".to_string()),
-                "highlights": file.tags.as_ref()
-                    .and_then(|tags| serde_json::from_str::<Vec<String>>(tags).ok())
-                    .unwrap_or_default(),
-                "search_type": "semantic"
-            })
-        })
-        .collect();
-    
-    let execution_time = start_time.elapsed().as_millis();
-    
-    let response = serde_json::json!({
-        "results": results,
-        "total": results.len(),
-        "query": query,
-        "execution_time_ms": execution_time,
-        "search_type": "semantic"
-    });
-    
-    Ok(response)
+    }
 }
 
 #[tauri::command]
@@ -1066,6 +1074,122 @@ async fn submit_error_report(
     }
 }
 
+// Vector search commands
+#[tauri::command]
+async fn generate_file_vectors(
+    file_id: String,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    tracing::info!("Generating vectors for file: {}", file_id);
+    
+    // For now, we'll need to get the file path from the file_id
+    // This is a simplified implementation - in production you'd have proper ID-based lookup
+    let file_path = file_id.clone(); // Assuming file_id is actually a path for now
+
+    // Extract content for vector generation
+    let content = crate::content_extractor::ContentExtractor::extract_content(&file_path).await
+        .map_err(|e| format!("Content extraction failed: {}", e))?;
+
+    // Generate vectors
+    let (content_vector, metadata_vector, summary_vector) = state.semantic_search
+        .generate_content_vectors(&content).await
+        .map_err(|e| format!("Vector generation failed: {}", e))?;
+
+    // Store vectors
+    state.vector_storage.store_file_vectors(
+        &file_id,
+        content_vector,
+        metadata_vector,
+        summary_vector,
+        "nomic-embed-text", // TODO: Make configurable
+    ).await.map_err(|e| format!("Vector storage failed: {}", e))?;
+
+    tracing::info!("Vectors generated and stored for file: {}", file_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn process_folder_vectors(
+    folder_path: String,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    tracing::info!("Processing folder vectors for: {}", folder_path);
+    
+    let analysis = state.folder_vectorizer.process_folder(&folder_path).await
+        .map_err(|e| format!("Folder processing failed: {}", e))?;
+
+    tracing::info!("Folder vectors processed for: {}", folder_path);
+    Ok(serde_json::to_value(analysis).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn get_vector_statistics(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let stats = state.vector_storage.get_vector_statistics().await
+        .map_err(|e| format!("Failed to get vector statistics: {}", e))?;
+    
+    Ok(serde_json::to_value(stats).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn hybrid_search(query: String, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Performing hybrid search for: {}", query);
+    
+    let search_request = semantic_search::SearchRequest {
+        query: query.clone(),
+        search_type: semantic_search::SearchType::Hybrid,
+        filters: None,
+        limit: Some(50),
+        threshold: Some(0.6),
+    };
+
+    match state.semantic_search.search(search_request).await {
+        Ok(search_response) => {
+            let results: Vec<serde_json::Value> = search_response.results
+                .iter()
+                .map(|result| {
+                    serde_json::json!({
+                        "file": {
+                            "id": result.file_id,
+                            "path": result.file_path,
+                            "name": result.file_name,
+                            "extension": std::path::Path::new(&result.file_path)
+                                .extension()
+                                .and_then(|ext| ext.to_str())
+                                .unwrap_or(""),
+                            "size": 0, // TODO: Get from metadata
+                            "created_at": result.last_modified,
+                            "modified_at": result.last_modified,
+                            "mime_type": "", // TODO: Get from metadata
+                            "processing_status": "completed"
+                        },
+                        "score": result.similarity_score,
+                        "snippet": result.snippet.as_ref().unwrap_or(&format!("Match in {}", result.file_name)),
+                        "highlights": result.highlights,
+                        "search_type": "hybrid"
+                    })
+                })
+                .collect();
+
+            let response = serde_json::json!({
+                "results": results,
+                "total": search_response.total_results,
+                "query": search_response.query,
+                "execution_time_ms": search_response.search_time_ms,
+                "search_type": "hybrid",
+                "expanded_query": search_response.expanded_query,
+                "suggestions": search_response.suggestions
+            });
+
+            Ok(response)
+        }
+        Err(e) => {
+            tracing::error!("Hybrid search failed: {}", e);
+            // Fallback to regular search
+            search_files(query, None, state).await
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -1100,6 +1224,26 @@ async fn main() {
     let ai_processor = AIProcessor::new(
         config.ai.ollama_url.clone(),
         config.ai.model.clone(),
+    );
+
+    // Initialize vector search components
+    let vector_storage = VectorStorageManager::new(database.pool.clone());
+    
+    // Initialize vector storage schema
+    if let Err(e) = vector_storage.initialize().await {
+        tracing::error!("Failed to initialize vector storage: {}", e);
+    } else {
+        tracing::info!("Vector storage initialized successfully");
+    }
+
+    let semantic_search_engine = SemanticSearchEngine::new(
+        vector_storage.clone(),
+        ai_processor.clone(),
+    );
+
+    let folder_vectorizer = FolderVectorizer::new(
+        vector_storage.clone(),
+        ai_processor.clone(),
     );
 
     // Initialize processing queue with AI processor
@@ -1140,6 +1284,9 @@ async fn main() {
         processing_queue,
         updater,
         error_reporter,
+        vector_storage,
+        semantic_search: semantic_search_engine,
+        folder_vectorizer,
     };
 
     tauri::Builder::default()
@@ -1180,7 +1327,11 @@ async fn main() {
             check_for_updates,
             install_update,
             get_error_reports,
-            submit_error_report
+            submit_error_report,
+            generate_file_vectors,
+            process_folder_vectors,
+            get_vector_statistics,
+            hybrid_search
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");

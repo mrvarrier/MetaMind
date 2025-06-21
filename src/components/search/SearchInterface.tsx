@@ -14,6 +14,7 @@ export function SearchInterface() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showVoiceSearch, setShowVoiceSearch] = useState(false);
   const [showVisualSearch, setShowVisualSearch] = useState(false);
+  const [searchMode, setSearchMode] = useState<'semantic' | 'hybrid' | 'traditional'>('semantic');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -23,6 +24,7 @@ export function SearchInterface() {
     aiAvailable,
     lastSearchType,
     search,
+    hybridSearch,
     getSuggestions,
     clearSearch,
     checkAiAvailability,
@@ -52,7 +54,23 @@ export function SearchInterface() {
 
   const handleSearch = () => {
     if (searchInput.trim()) {
-      search(searchInput.trim());
+      const query = searchInput.trim();
+      
+      switch (searchMode) {
+        case 'semantic':
+          search(query);
+          break;
+        case 'hybrid':
+          hybridSearch(query);
+          break;
+        case 'traditional':
+          // Use regular search by temporarily setting a flag or passing a parameter
+          search(query);
+          break;
+        default:
+          search(query);
+      }
+      
       setShowSuggestions(false);
       searchInputRef.current?.blur();
     }
@@ -262,6 +280,25 @@ export function SearchInterface() {
                 </svg>
                 Filters
               </Button>
+
+              {/* Search Mode Selector */}
+              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-apple-lg p-1">
+                {(['semantic', 'hybrid', 'traditional'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setSearchMode(mode)}
+                    className={`px-3 py-1 text-sm font-medium rounded-apple transition-colors ${
+                      searchMode === mode
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {mode === 'semantic' && '🧠 AI'}
+                    {mode === 'hybrid' && '⚡ Hybrid'}
+                    {mode === 'traditional' && '📝 Text'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Search Suggestions */}
