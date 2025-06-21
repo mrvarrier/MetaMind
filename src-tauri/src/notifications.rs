@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -228,14 +228,20 @@ impl NotificationManager {
 
         // Check category settings
         let category_settings = config.categories.get(&category)
-            .ok_or_else(|| anyhow::anyhow!("Unknown notification category: {:?}", category))?;
+            .ok_or_else(|| anyhow::anyhow!("Unknown notification category: {:?}", category))?
+            .clone();
         
         if !category_settings.enabled {
             return Ok(Uuid::new_v4()); // Return dummy ID
         }
 
         // Check quiet hours
-        if self.is_quiet_hours(&config).await? {
+        let is_quiet = self.is_quiet_hours(&config).await?;
+        let do_not_disturb = config.do_not_disturb;
+        
+        drop(config);
+
+        if is_quiet {
             if !matches!(category_settings.priority, NotificationPriority::Critical) {
                 // Store for later delivery
                 self.store_for_later_delivery(title, message, category, actions, metadata).await?;
@@ -244,12 +250,10 @@ impl NotificationManager {
         }
 
         // Check do not disturb
-        if config.do_not_disturb && !matches!(category_settings.priority, NotificationPriority::Critical) {
+        if do_not_disturb && !matches!(category_settings.priority, NotificationPriority::Critical) {
             self.store_for_later_delivery(title, message, category, actions, metadata).await?;
             return Ok(Uuid::new_v4());
         }
-
-        drop(config);
 
         // Create notification entry
         let notification = NotificationEntry {
@@ -393,15 +397,15 @@ impl NotificationManager {
     }
 
     /// Get appropriate icon for notification category
-    fn get_icon_for_category(&self, category: &NotificationCategory) -> tauri::api::notification::NotificationIcon {
+    fn get_icon_for_category(&self, category: &NotificationCategory) -> String {
         match category {
             NotificationCategory::Errors | NotificationCategory::Security => {
-                tauri::api::notification::NotificationIcon::Error
+                "error".to_string()
             }
             NotificationCategory::System | NotificationCategory::Performance => {
-                tauri::api::notification::NotificationIcon::Warning
+                "warning".to_string()
             }
-            _ => tauri::api::notification::NotificationIcon::Info
+            _ => "info".to_string()
         }
     }
 
@@ -436,14 +440,14 @@ impl NotificationManager {
     /// Store notification for later delivery
     async fn store_for_later_delivery(
         &self,
-        title: String,
-        message: String,
-        category: NotificationCategory,
-        actions: Vec<NotificationAction>,
-        metadata: HashMap<String, String>,
+        _title: String,
+        _message: String,
+        _category: NotificationCategory,
+        _actions: Vec<NotificationAction>,
+        _metadata: HashMap<String, String>,
     ) -> Result<()> {
         // For now, just log that it would be stored
-        tracing::info!("Notification stored for later delivery: {}", title);
+        tracing::info!("Notification stored for later delivery");
         // In a full implementation, you'd store these in a persistent queue
         Ok(())
     }
@@ -464,7 +468,7 @@ impl NotificationManager {
             
             // Emit update to frontend
             if let Some(app_handle) = &self.app_handle {
-                app_handle.emit_all("notification-updated", notification)?;
+                app_handle.emit_all("notification-updated", notification.clone())?;
             }
         }
         Ok(())

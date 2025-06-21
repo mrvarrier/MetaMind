@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -98,7 +98,7 @@ pub enum PluginStatus {
     Disabled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PluginPermission {
     FileRead,
     FileWrite,
@@ -589,7 +589,7 @@ impl PluginSystem {
         &self,
         plugin_id: &str,
         result: &Option<serde_json::Value>,
-        execution_time: std::time::Duration,
+        _execution_time: std::time::Duration,
     ) -> Result<()> {
         let mut plugins = self.plugins.write().await;
         
@@ -653,22 +653,23 @@ impl PluginSystem {
     }
 
     /// Recursively copy directory
-    async fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<()> {
-        tokio::fs::create_dir_all(dst).await?;
-        
-        let mut dir = tokio::fs::read_dir(src).await?;
-        while let Some(entry) = dir.next_entry().await? {
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
+    fn copy_dir_recursive<'a>(&'a self, src: &'a Path, dst: &'a Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            tokio::fs::create_dir_all(dst).await?;
             
-            if src_path.is_dir() {
-                self.copy_dir_recursive(&src_path, &dst_path).await?;
-            } else {
-                tokio::fs::copy(&src_path, &dst_path).await?;
+            let mut dir = tokio::fs::read_dir(src).await?;
+            while let Some(entry) = dir.next_entry().await? {
+                let src_path = entry.path();
+                let dst_path = dst.join(entry.file_name());
+                
+                if src_path.is_dir() {
+                    self.copy_dir_recursive(&src_path, &dst_path).await?;
+                } else {
+                    tokio::fs::copy(&src_path, &dst_path).await?;
+                }
             }
-        }
-        
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Uninstall a plugin

@@ -1,7 +1,5 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// Platform-specific optimizations for MetaMind
 pub struct PlatformOptimizer {
@@ -63,7 +61,7 @@ pub enum GpuDeviceType {
     External,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GpuAPI {
     #[cfg(target_os = "macos")]
     Metal,
@@ -345,7 +343,7 @@ impl PlatformOptimizer {
 
     /// Get CPU information
     async fn get_cpu_info(&self) -> Result<CpuInfo> {
-        use sysinfo::{System, SystemExt, CpuExt};
+        use sysinfo::{System, SystemExt};
 
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -440,7 +438,7 @@ impl PlatformOptimizer {
         use std::process::Command;
 
         // Register MetaMind with Spotlight
-        let bundle_id = "com.metamind.app";
+        let _bundle_id = "com.metamind.app";
         
         Command::new("mdimport")
             .arg("-r")

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, warn, info, debug};
+use tracing::{error, warn, info};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
@@ -89,6 +89,7 @@ impl Default for ErrorReportingConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct ErrorReporter {
     config: Arc<RwLock<ErrorReportingConfig>>,
     session_id: String,
@@ -418,7 +419,7 @@ impl ErrorReporter {
     }
 
     fn collect_system_info() -> SystemInfo {
-        use sysinfo::{System, SystemExt, CpuExt};
+        use sysinfo::{System, SystemExt, CpuExt, DiskExt};
         
         let mut system = System::new_all();
         system.refresh_all();
@@ -430,7 +431,7 @@ impl ErrorReporter {
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             memory_usage: system.used_memory(),
             cpu_usage: system.global_cpu_info().cpu_usage(),
-            disk_space: system.disks().iter().map(|d| d.available_space()).sum(),
+            disk_space: system.disks().iter().map(|d| d.total_space()).sum(),
             uptime: system.uptime(),
         }
     }

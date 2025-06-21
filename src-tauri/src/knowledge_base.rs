@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -400,24 +400,28 @@ impl KnowledgeBase {
         let entities = self.entities.read().await;
         
         // Check if entity already exists
-        for entity in entities.values() {
-            if entity.name.to_lowercase() == name.to_lowercase() && 
-               std::mem::discriminant(&entity.entity_type) == std::mem::discriminant(&entity_type) {
-                // Add occurrence to existing entity
-                drop(entities);
-                let mut entities_write = self.entities.write().await;
-                if let Some(entity) = entities_write.get_mut(&entity.id) {
-                    entity.occurrences.push(EntityOccurrence {
-                        document_id,
-                        position: 0, // Would be calculated properly
-                        context: name.clone(),
-                        confidence,
-                    });
-                }
-                return Ok(entity.id);
-            }
-        }
+        let existing_entity_id = entities.values()
+            .find(|entity| {
+                entity.name.to_lowercase() == name.to_lowercase() && 
+                std::mem::discriminant(&entity.entity_type) == std::mem::discriminant(&entity_type)
+            })
+            .map(|entity| entity.id);
+        
         drop(entities);
+
+        if let Some(entity_id) = existing_entity_id {
+            // Add occurrence to existing entity
+            let mut entities_write = self.entities.write().await;
+            if let Some(entity) = entities_write.get_mut(&entity_id) {
+                entity.occurrences.push(EntityOccurrence {
+                    document_id,
+                    position: 0, // Would be calculated properly
+                    context: name.clone(),
+                    confidence,
+                });
+            }
+            return Ok(entity_id);
+        }
 
         // Create new entity
         let entity_id = Uuid::new_v4();
@@ -445,7 +449,8 @@ impl KnowledgeBase {
     /// Extract topics from content
     async fn extract_topics(&self, content: &str) -> Result<Vec<String>> {
         // Simple topic extraction using word frequency
-        let words: Vec<&str> = content.to_lowercase()
+        let lowercase_content = content.to_lowercase();
+        let words: Vec<&str> = lowercase_content
             .split_whitespace()
             .filter(|w| w.len() > 4)
             .collect();
@@ -625,9 +630,9 @@ impl KnowledgeBase {
         let mut similarity = 0.0;
 
         // Topic overlap
-        let common_topics: HashSet<_> = doc1.topics.iter().collect::<HashSet<_>>()
-            .intersection(&doc2.topics.iter().collect())
-            .count();
+        let doc1_topics: HashSet<_> = doc1.topics.iter().collect();
+        let doc2_topics: HashSet<_> = doc2.topics.iter().collect();
+        let common_topics = doc1_topics.intersection(&doc2_topics).count();
         
         let total_topics = doc1.topics.len() + doc2.topics.len();
         if total_topics > 0 {
@@ -635,9 +640,9 @@ impl KnowledgeBase {
         }
 
         // Entity overlap
-        let common_entities: HashSet<_> = doc1.entities.iter().collect::<HashSet<_>>()
-            .intersection(&doc2.entities.iter().collect())
-            .count();
+        let doc1_entities: HashSet<_> = doc1.entities.iter().collect();
+        let doc2_entities: HashSet<_> = doc2.entities.iter().collect();
+        let common_entities = doc1_entities.intersection(&doc2_entities).count();
         
         let total_entities = doc1.entities.len() + doc2.entities.len();
         if total_entities > 0 {

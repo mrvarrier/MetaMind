@@ -164,10 +164,10 @@ impl EncryptionManager {
     }
 
     async fn encrypt_aes256_gcm(&self, data: &[u8], key: &[u8; 32]) -> Result<EncryptedData> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, NewAead}};
+        use aes_gcm::{Aes256Gcm, Nonce, aead::Aead, KeyInit};
         use rand::RngCore;
 
-        let cipher = Aes256Gcm::new(Key::from_slice(key));
+        let cipher = Aes256Gcm::new(aes_gcm::Key::<Aes256Gcm>::from_slice(key));
         let mut nonce_bytes = [0u8; 12];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -183,9 +183,9 @@ impl EncryptionManager {
     }
 
     async fn decrypt_aes256_gcm(&self, ciphertext: &[u8], nonce: &[u8], _tag: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
-        use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, NewAead}};
+        use aes_gcm::{Aes256Gcm, Nonce, aead::Aead, KeyInit};
 
-        let cipher = Aes256Gcm::new(Key::from_slice(key));
+        let cipher = Aes256Gcm::new(aes_gcm::Key::<Aes256Gcm>::from_slice(key));
         let nonce = Nonce::from_slice(nonce);
 
         let plaintext = cipher.decrypt(nonce, ciphertext)
@@ -195,7 +195,7 @@ impl EncryptionManager {
     }
 
     async fn encrypt_chacha20_poly1305(&self, data: &[u8], key: &[u8; 32]) -> Result<EncryptedData> {
-        use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, aead::{Aead, NewAead}};
+        use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, aead::Aead, KeyInit};
         use rand::RngCore;
 
         let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
@@ -214,7 +214,7 @@ impl EncryptionManager {
     }
 
     async fn decrypt_chacha20_poly1305(&self, ciphertext: &[u8], nonce: &[u8], _tag: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
-        use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, aead::{Aead, NewAead}};
+        use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, aead::Aead, KeyInit};
 
         let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
         let nonce = Nonce::from_slice(nonce);
@@ -247,7 +247,7 @@ pub struct AccessPolicy {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum Permission {
     Read,
     Write,
@@ -288,7 +288,8 @@ impl AccessControlManager {
         }
 
         // Check user permissions
-        let user_permissions = self.user_permissions.get(user).unwrap_or(&Vec::new());
+        let empty_permissions = Vec::new();
+        let user_permissions = self.user_permissions.get(user).unwrap_or(&empty_permissions);
         let has_permission = user_permissions.contains(permission);
 
         tracing::debug!("Access check for user '{}' on path '{:?}': {}", user, path, has_permission);

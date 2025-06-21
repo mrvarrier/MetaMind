@@ -59,6 +59,7 @@ impl Default for UpdaterConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct Updater {
     config: UpdaterConfig,
     status: UpdateStatus,
@@ -186,7 +187,7 @@ impl Updater {
                             
                             return Ok(Some(UpdateInfo {
                                 version,
-                                notes,
+                                notes: notes.clone(),
                                 url: download_url,
                                 signature: "".to_string(), // TODO: Implement signature verification
                                 size,
@@ -204,7 +205,7 @@ impl Updater {
 
     fn is_asset_for_current_platform(&self, asset_name: &str) -> bool {
         let os = std::env::consts::OS;
-        let arch = std::env::consts::ARCH;
+        let _arch = std::env::consts::ARCH;
         
         match os {
             "macos" => asset_name.contains("darwin") || asset_name.contains("macos"),
