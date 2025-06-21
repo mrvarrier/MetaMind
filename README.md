@@ -144,20 +144,31 @@ metamind/
 ├── src-tauri/           # Rust backend
 │   ├── src/
 │   │   ├── main.rs      # Application entry point
-│   │   ├── file_processor/   # File monitoring and processing
-│   │   ├── ai_integration/   # AI model integration
-│   │   ├── search_engine/    # Search and indexing
-│   │   ├── system_monitor/   # System performance monitoring
-│   │   └── database/         # SQLite database layer
+│   │   ├── vector_math.rs        # Vector similarity calculations
+│   │   ├── vector_storage.rs     # Vector database operations
+│   │   ├── semantic_search.rs    # Semantic search engine
+│   │   ├── folder_vectorizer.rs  # Folder aggregation
+│   │   ├── vector_cache.rs       # High-performance caching
+│   │   ├── vector_benchmarks.rs  # Performance testing
+│   │   ├── file_monitor/         # File monitoring and processing
+│   │   ├── ai_processor/         # AI model integration
+│   │   ├── processing_queue/     # Background job processing
+│   │   └── database/            # SQLite database layer
 │   ├── Cargo.toml       # Rust dependencies
 │   └── tauri.conf.json  # Tauri configuration
 ├── src/                 # React frontend
 │   ├── components/      # React components
+│   │   ├── search/      # Search interface with semantic modes
+│   │   ├── collections/ # Collection management (fixed delete)
+│   │   └── common/      # Reusable UI components
 │   ├── stores/          # Zustand state management
 │   ├── types/           # TypeScript type definitions
 │   ├── utils/           # Utility functions
 │   └── styles/          # CSS and styling
-├── public/              # Static assets
+├── docs/                # Technical documentation
+│   ├── README.md
+│   ├── VECTOR_SEARCH_GUIDE.md
+│   └── TECHNICAL_ARCHITECTURE.md
 └── package.json         # Node.js dependencies
 ```
 
