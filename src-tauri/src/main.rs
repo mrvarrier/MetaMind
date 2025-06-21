@@ -19,6 +19,7 @@ mod vector_math;
 mod vector_storage;
 mod semantic_search;
 mod folder_vectorizer;
+mod vector_cache;
 
 use database::Database;
 use file_monitor::FileMonitor;
@@ -29,6 +30,7 @@ use error_reporting::ErrorReporter;
 use vector_storage::VectorStorageManager;
 use semantic_search::SemanticSearchEngine;
 use folder_vectorizer::FolderVectorizer;
+use vector_cache::{VectorCache, VectorCacheConfig, CacheManager};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -42,6 +44,7 @@ pub struct AppState {
     pub vector_storage: VectorStorageManager,
     pub semantic_search: SemanticSearchEngine,
     pub folder_vectorizer: FolderVectorizer,
+    pub vector_cache: Arc<VectorCache>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1190,6 +1193,19 @@ async fn hybrid_search(query: String, state: State<'_, AppState>) -> Result<serd
     }
 }
 
+#[tauri::command]
+async fn get_cache_statistics(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let stats = state.vector_cache.get_statistics().await;
+    Ok(serde_json::to_value(stats).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+async fn clear_cache(state: State<'_, AppState>) -> Result<(), String> {
+    state.vector_cache.clear_all().await;
+    tracing::info!("All caches cleared by user request");
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -1246,6 +1262,14 @@ async fn main() {
         ai_processor.clone(),
     );
 
+    // Initialize vector cache
+    let cache_config = VectorCacheConfig::default();
+    let vector_cache = Arc::new(VectorCache::new(cache_config));
+    
+    // Start cache manager
+    let cache_manager = CacheManager::new(Arc::clone(&vector_cache), 300); // 5 minute cleanup interval
+    cache_manager.start().await;
+
     // Initialize processing queue with AI processor
     let processing_queue = ProcessingQueue::new(
         database.clone(),
@@ -1287,6 +1311,7 @@ async fn main() {
         vector_storage,
         semantic_search: semantic_search_engine,
         folder_vectorizer,
+        vector_cache,
     };
 
     tauri::Builder::default()
@@ -1331,7 +1356,9 @@ async fn main() {
             generate_file_vectors,
             process_folder_vectors,
             get_vector_statistics,
-            hybrid_search
+            hybrid_search,
+            get_cache_statistics,
+            clear_cache
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");
