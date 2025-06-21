@@ -230,7 +230,7 @@ Respond in JSON format:
         Ok(ollama_response.response)
     }
 
-    async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
+    pub async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
         // Truncate text if too long for embedding
         let embedding_text = if text.len() > 8000 {
             &text[..8000]

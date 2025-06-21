@@ -14,6 +14,8 @@ pub mod knowledge_base;
 pub mod cloud_sync;
 pub mod vector_math;
 pub mod vector_storage;
+pub mod semantic_search;
+pub mod folder_vectorizer;
 
 pub use database::Database;
 pub use file_monitor::FileMonitor;
@@ -30,3 +32,5 @@ pub use knowledge_base::KnowledgeBase;
 pub use cloud_sync::CloudSyncManager;
 pub use vector_math::VectorMath;
 pub use vector_storage::VectorStorageManager;
+pub use semantic_search::SemanticSearchEngine;
+pub use folder_vectorizer::FolderVectorizer;
