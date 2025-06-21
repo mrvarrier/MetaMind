@@ -108,7 +108,7 @@ export function SearchInterface() {
     setShowSuggestions(false);
   };
 
-  const handleVisualSearch = (query: string, imageFile?: File) => {
+  const handleVisualSearch = (query: string, _imageFile?: File) => {
     setSearchInput(query);
     search(query);
     setShowSuggestions(false);
