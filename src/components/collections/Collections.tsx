@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "../common/Button";
 import { Logo } from "../common/Logo";
 import { useAppStore } from "../../stores/useAppStore";
+import { useCollectionsStore } from "../../stores/useCollectionsStore";
 import { safeInvoke, isTauriApp } from "../../utils/tauri";
 import { open } from "@tauri-apps/api/dialog";
 
@@ -84,6 +85,11 @@ const COLLECTION_ICONS = [
 
 export function Collections() {
   const { onboardingState } = useAppStore();
+  const { 
+    createCollection: storeCreateCollection,
+    deleteCollection: storeDeleteCollection,
+  } = useCollectionsStore();
+  
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,7 +114,7 @@ export function Collections() {
       setIsLoading(true);
       setError(null);
       
-      // Load collections from localStorage or backend
+      // Load collections from localStorage for UI state
       const savedCollections = localStorage.getItem('metamind-collections');
       if (savedCollections) {
         const parsedCollections = JSON.parse(savedCollections);
@@ -296,9 +302,22 @@ export function Collections() {
       errorFiles: 0,
     };
     
+    // Update local state
     const updatedCollections = [...collections, collection];
     setCollections(updatedCollections);
     saveCollections(updatedCollections);
+    
+    // Also create in backend
+    try {
+      await storeCreateCollection(
+        newCollection.name.trim(),
+        newCollection.description?.trim() || undefined
+      );
+    } catch (error) {
+      console.error('Failed to create collection in backend:', error);
+      // Don't rollback local state - user can still see the collection
+    }
+    
     setShowCreateModal(false);
     setNewCollection({ name: '', description: '', color: 'blue', icon: '📚' });
   };
@@ -312,12 +331,23 @@ export function Collections() {
     );
     
     if (confirmed) {
+      // Update local state immediately for responsive UI
       const updatedCollections = collections.filter(c => c.id !== collectionId);
       setCollections(updatedCollections);
       saveCollections(updatedCollections);
       
       if (selectedCollection?.id === collectionId) {
         setSelectedCollection(null);
+      }
+      
+      // Also delete from backend
+      try {
+        await storeDeleteCollection(collectionId);
+        console.log('Collection deleted from backend successfully');
+      } catch (error) {
+        console.error('Failed to delete collection from backend:', error);
+        // The UI already updated, so user sees the delete worked
+        // Could show a warning toast that sync failed
       }
     }
   };
