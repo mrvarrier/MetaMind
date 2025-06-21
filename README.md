@@ -4,12 +4,13 @@ MetaMind is a cross-platform desktop application that leverages AI to automatica
 
 ## Features
 
-- 🔍 **Smart Search**: Find files using natural language queries
-- 🤖 **AI Analysis**: Automatic file categorization and content analysis  
-- 📊 **Collections**: Organize files into intelligent collections
-- 🎨 **Beautiful UI**: Apple + Notion inspired design system
+- 🔍 **Semantic Search**: Find files using natural language with AI-powered vector similarity
+- 🤖 **AI Analysis**: Automatic file categorization and comprehensive content analysis  
+- 📊 **Smart Collections**: Organize files into intelligent collections with proper data persistence
+- 🧠 **Vector Intelligence**: Semantic understanding of file content and folder themes
+- 🎨 **Beautiful UI**: Apple + Notion inspired design system with responsive interactions
 - 🔒 **Privacy First**: Local processing with optional cloud features
-- ⚡ **High Performance**: Rust backend with React frontend
+- ⚡ **High Performance**: Rust backend with React frontend and vector caching
 - 🌓 **Dark Mode**: Automatic theme switching
 
 ## Tech Stack
@@ -23,10 +24,10 @@ MetaMind is a cross-platform desktop application that leverages AI to automatica
 
 ### Backend
 - **Rust** with Tauri framework
-- **SQLite** with FTS5 for full-text search
+- **SQLite** with FTS5 for full-text search and vector storage
 - **Tantivy** for advanced search indexing
-- **Qdrant** for vector search (planned)
-- **Ollama** for local AI processing
+- **Vector Search** with cosine similarity and caching
+- **Ollama** for local AI processing and embedding generation
 
 ## Prerequisites
 
@@ -191,19 +192,21 @@ Adjust performance settings based on your system:
 
 ### Searching
 
-Use natural language queries to find files:
+Use natural language queries with semantic understanding:
 
-- "photos from last week"
-- "PDF documents about project"  
-- "code files modified today"
-- "presentations larger than 10MB"
+- "photos from last week" - finds images by date and content
+- "PDF documents about project" - semantic content matching
+- "code files modified today" - temporal and type filtering
+- "presentations larger than 10MB" - size and semantic filtering
+- "files similar to machine learning" - concept-based discovery
 
 ### Collections
 
-Organize files into smart collections:
-- Manual collections: Drag and drop files
+Organize files into smart collections with persistent storage:
+- Manual collections: Drag and drop files with backend sync
 - Automatic collections: Rule-based organization
-- AI collections: Semantic grouping
+- AI collections: Semantic grouping with vector similarity
+- Reliable deletion: Collections properly removed from both UI and database
 
 ## Troubleshooting
 
