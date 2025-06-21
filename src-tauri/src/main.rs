@@ -20,6 +20,7 @@ mod vector_storage;
 mod semantic_search;
 mod folder_vectorizer;
 mod vector_cache;
+mod vector_benchmarks;
 
 use database::Database;
 use file_monitor::FileMonitor;
@@ -31,6 +32,7 @@ use vector_storage::VectorStorageManager;
 use semantic_search::SemanticSearchEngine;
 use folder_vectorizer::FolderVectorizer;
 use vector_cache::{VectorCache, VectorCacheConfig, CacheManager};
+use vector_benchmarks::{VectorBenchmarks, BenchmarkConfig};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -45,6 +47,7 @@ pub struct AppState {
     pub semantic_search: SemanticSearchEngine,
     pub folder_vectorizer: FolderVectorizer,
     pub vector_cache: Arc<VectorCache>,
+    pub benchmarks: VectorBenchmarks,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1206,6 +1209,52 @@ async fn clear_cache(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn run_vector_benchmarks(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Starting comprehensive vector benchmarks");
+    
+    let config = BenchmarkConfig::default();
+    let results = state.benchmarks.run_full_benchmark_suite(config).await
+        .map_err(|e| format!("Benchmark failed: {}", e))?;
+    
+    let report = state.benchmarks.generate_report(&results);
+    tracing::info!("Benchmark completed with {} tests", results.len());
+    
+    Ok(serde_json::json!({
+        "results": results,
+        "report": report,
+        "summary": {
+            "total_tests": results.len(),
+            "avg_throughput": results.iter().map(|r| r.throughput_ops_per_sec).sum::<f64>() / results.len() as f64,
+            "total_memory_mb": results.iter().map(|r| r.memory_usage_mb).sum::<f64>()
+        }
+    }))
+}
+
+#[tauri::command]
+async fn run_quick_benchmark(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    tracing::info!("Starting quick vector benchmark");
+    
+    let mut config = BenchmarkConfig::default();
+    config.dataset_sizes = vec![100, 1000]; // Smaller datasets for quick test
+    config.benchmark_iterations = 10;
+    config.warmup_iterations = 2;
+    
+    let results = state.benchmarks.run_full_benchmark_suite(config).await
+        .map_err(|e| format!("Quick benchmark failed: {}", e))?;
+    
+    tracing::info!("Quick benchmark completed");
+    
+    Ok(serde_json::json!({
+        "results": results,
+        "summary": {
+            "total_tests": results.len(),
+            "avg_execution_time_ms": results.iter().map(|r| r.execution_time_ms).sum::<u128>() / results.len() as u128,
+            "avg_throughput": results.iter().map(|r| r.throughput_ops_per_sec).sum::<f64>() / results.len() as f64
+        }
+    }))
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -1270,6 +1319,13 @@ async fn main() {
     let cache_manager = CacheManager::new(Arc::clone(&vector_cache), 300); // 5 minute cleanup interval
     cache_manager.start().await;
 
+    // Initialize benchmarks
+    let benchmarks = VectorBenchmarks::new(
+        vector_storage.clone(),
+        semantic_search_engine.clone(),
+        Arc::clone(&vector_cache),
+    );
+
     // Initialize processing queue with AI processor
     let processing_queue = ProcessingQueue::new(
         database.clone(),
@@ -1312,6 +1368,7 @@ async fn main() {
         semantic_search: semantic_search_engine,
         folder_vectorizer,
         vector_cache,
+        benchmarks,
     };
 
     tauri::Builder::default()
@@ -1358,7 +1415,9 @@ async fn main() {
             get_vector_statistics,
             hybrid_search,
             get_cache_statistics,
-            clear_cache
+            clear_cache,
+            run_vector_benchmarks,
+            run_quick_benchmark
         ])
         .setup(|_app| {
             tracing::info!("MetaMind is starting up!");

@@ -17,6 +17,7 @@ pub mod vector_storage;
 pub mod semantic_search;
 pub mod folder_vectorizer;
 pub mod vector_cache;
+pub mod vector_benchmarks;
 
 pub use database::Database;
 pub use file_monitor::FileMonitor;
@@ -36,3 +37,4 @@ pub use vector_storage::VectorStorageManager;
 pub use semantic_search::SemanticSearchEngine;
 pub use folder_vectorizer::FolderVectorizer;
 pub use vector_cache::{VectorCache, VectorCacheConfig, CacheManager};
+pub use vector_benchmarks::{VectorBenchmarks, BenchmarkConfig, BenchmarkResults};
